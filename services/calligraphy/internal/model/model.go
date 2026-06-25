@@ -20,6 +20,27 @@ type Glyph struct {
 	ReviewStatus  string  `json:"review_status"`
 }
 
+type PracticeTemplate struct {
+	TemplateType string `json:"template_type"`
+	GridType     string `json:"grid_type"`
+	Title        string `json:"title"`
+	Description  string `json:"description"`
+}
+
+type GlyphDetail struct {
+	Glyph             Glyph              `json:"glyph"`
+	StructureNotes    []string           `json:"structure_notes"`
+	BrushworkNotes    []string           `json:"brushwork_notes"`
+	PracticeTemplates []PracticeTemplate `json:"practice_templates"`
+}
+
+type GlyphPresetGroup struct {
+	GroupID     string  `json:"group_id"`
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	Glyphs      []Glyph `json:"glyphs"`
+}
+
 type GlyphSearchParams struct {
 	Character  string
 	Style      string
@@ -80,4 +101,78 @@ type TextSlot struct {
 	XCM    float64 `json:"x_cm"`
 	YCM    float64 `json:"y_cm"`
 	SizeCM float64 `json:"size_cm"`
+}
+
+type CreateArtworkDraftRequest struct {
+	OwnerUserID    string            `json:"owner_user_id"`
+	Layout         LayoutRequest     `json:"layout"`
+	GlyphOverrides map[string]string `json:"glyph_overrides,omitempty"`
+}
+
+type ArtworkDraft struct {
+	ArtworkID      string            `json:"artwork_id"`
+	OwnerUserID    string            `json:"owner_user_id"`
+	Text           string            `json:"text"`
+	Layout         LayoutResult      `json:"layout"`
+	GlyphOverrides map[string]string `json:"glyph_overrides,omitempty"`
+	Exports        []ExportRecord    `json:"exports,omitempty"`
+	CreatedAt      string            `json:"created_at"`
+	UpdatedAt      string            `json:"updated_at"`
+}
+
+type CreateExportRequest struct {
+	Format       string `json:"format"`
+	TemplateType string `json:"template_type"`
+}
+
+type ExportRecord struct {
+	ExportID      string `json:"export_id"`
+	ArtworkID     string `json:"artwork_id"`
+	Format        string `json:"format"`
+	TemplateType  string `json:"template_type"`
+	ContentType   string `json:"content_type"`
+	StorageKey    string `json:"storage_key,omitempty"`
+	SHA256        string `json:"sha256"`
+	ByteSize      int    `json:"byte_size"`
+	InlineContent string `json:"inline_content,omitempty"`
+	CreatedAt     string `json:"created_at"`
+}
+
+type CreateFavoriteRequest struct {
+	GlyphID string `json:"glyph_id"`
+}
+
+type FavoriteGlyph struct {
+	OwnerUserID string `json:"owner_user_id"`
+	GlyphID     string `json:"glyph_id"`
+	Character   string `json:"character"`
+	Style       string `json:"style"`
+	CopybookID  string `json:"copybook_id"`
+	CreatedAt   string `json:"created_at"`
+}
+
+type CreatePracticeRecordRequest struct {
+	GlyphID      string `json:"glyph_id"`
+	TemplateType string `json:"template_type"`
+	GridType     string `json:"grid_type"`
+}
+
+type PracticeRecord struct {
+	PracticeID   string `json:"practice_id"`
+	OwnerUserID  string `json:"owner_user_id"`
+	GlyphID      string `json:"glyph_id"`
+	Character    string `json:"character"`
+	Style        string `json:"style"`
+	TemplateType string `json:"template_type"`
+	GridType     string `json:"grid_type"`
+	CreatedAt    string `json:"created_at"`
+}
+
+type LearningProfile struct {
+	OwnerUserID     string           `json:"owner_user_id"`
+	Favorites       []FavoriteGlyph  `json:"favorites"`
+	RecentPractice  []PracticeRecord `json:"recent_practice"`
+	PracticeCount   int              `json:"practice_count"`
+	FavoriteCount   int              `json:"favorite_count"`
+	LastPracticedAt string           `json:"last_practiced_at,omitempty"`
 }

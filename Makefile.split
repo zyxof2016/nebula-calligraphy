@@ -2,6 +2,11 @@
 split-check:
 	@echo "contract json check"
 	@find docs/contracts -name '*.json' -print0 | xargs -0 -r -n 1 python3 -m json.tool >/dev/null
+	@echo "web app asset check"
+	@test -f web/app/index.html
+	@test -f web/app/styles.css
+	@test -f web/app/app.js
+	@if command -v node >/dev/null 2>&1; then node --check web/app/app.js >/dev/null; else echo "node not found, skip web js syntax check"; fi
 	@echo "calligraphy service tests"
 	@cd services/calligraphy && GOCACHE=/tmp/nebula-calligraphy-go-cache go test ./...
 

@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "contract": "calligraphy.learning.v1",
+  "description": "Daily learning profile, favorite glyph, and practice record contract for Nebula Calligraphy.",
+  "favoriteGlyph": {
+    "required": [
+      "owner_user_id",
+      "glyph_id",
+      "character",
+      "style",
+      "created_at"
+    ],
+    "fields": {
+      "owner_user_id": "Nebula Identity user id. MVP accepts explicit path value until Identity middleware is wired.",
+      "glyph_id": "Published glyph identifier.",
+      "character": "Unicode character.",
+      "style": "Calligraphy style such as ou or yan.",
+      "copybook_id": "Source copybook identifier.",
+      "created_at": "Favorite creation timestamp."
+    }
+  },
+  "practiceRecord": {
+    "required": [
+      "practice_id",
+      "owner_user_id",
+      "glyph_id",
+      "character",
+      "style",
+      "template_type",
+      "grid_type",
+      "created_at"
+    ],
+    "fields": {
+      "practice_id": "Stable practice action identifier.",
+      "owner_user_id": "Nebula Identity user id.",
+      "glyph_id": "Published glyph identifier.",
+      "character": "Unicode character.",
+      "style": "Calligraphy style.",
+      "template_type": "copy or outline.",
+      "grid_type": "mi or jiugong.",
+      "created_at": "Practice timestamp."
+    }
+  },
+  "learningProfile": {
+    "fields": {
+      "owner_user_id": "Learner id.",
+      "favorites": "Favorite glyph list sorted by newest first.",
+      "recent_practice": "Recent practice records sorted by newest first.",
+      "practice_count": "Total practice record count retained by the MVP store.",
+      "favorite_count": "Current favorite glyph count.",
+      "last_practiced_at": "Most recent practice timestamp when present."
+    }
+  },
+  "endpoints": {
+    "GET /api/v1/calligraphy/users/{owner_user_id}/learning": "Read the daily learning profile.",
+    "POST /api/v1/calligraphy/users/{owner_user_id}/favorites": "Create or refresh a favorite glyph by glyph_id.",
+    "DELETE /api/v1/calligraphy/users/{owner_user_id}/favorites/{glyph_id}": "Remove one favorite glyph.",
+    "POST /api/v1/calligraphy/users/{owner_user_id}/practice": "Record one practice action for a glyph and practice template."
+  }
+}

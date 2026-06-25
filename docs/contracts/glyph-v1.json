@@ -31,6 +31,29 @@
       "license_status": "public_domain, licensed, restricted, or pending_review",
       "review_status": "draft, expert_reviewed, published, or rejected"
     }
+  },
+  "glyphDetail": {
+    "fields": {
+      "glyph": "Published glyph metadata.",
+      "structure_notes": "Short learner-facing structure observations.",
+      "brushwork_notes": "Short learner-facing brushwork observations.",
+      "practice_templates": "Available practice template descriptors."
+    }
+  },
+  "glyphPresetGroup": {
+    "fields": {
+      "group_id": "Stable preset group identifier.",
+      "title": "Display title.",
+      "description": "Learner-facing group description.",
+      "glyphs": "Published common glyphs included in the group."
+    }
+  },
+  "practiceTemplate": {
+    "fields": {
+      "template_type": "copy or outline.",
+      "grid_type": "mi or jiugong.",
+      "title": "Display title.",
+      "description": "Learner-facing usage note."
+    }
   }
 }
-

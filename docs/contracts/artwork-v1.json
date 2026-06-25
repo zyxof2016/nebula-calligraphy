@@ -21,15 +21,29 @@
       "updated_at": "Last update timestamp."
     }
   },
+  "createArtworkDraftRequest": {
+    "required": [
+      "owner_user_id",
+      "layout"
+    ],
+    "fields": {
+      "owner_user_id": "Nebula Identity user id. MVP accepts explicit value until Identity middleware is wired.",
+      "layout": "calligraphy.layout.v1 request used to generate the saved draft.",
+      "glyph_overrides": "Optional slot-to-glyph replacement map."
+    }
+  },
   "exportRecord": {
     "fields": {
       "export_id": "Export identifier.",
-      "format": "png or pdf.",
+      "artwork_id": "Artwork draft identifier.",
+      "format": "svg, png, or pdf. MVP supports svg.",
       "template_type": "tracing, outline, reference, or share.",
+      "content_type": "Rendered artifact content type.",
       "storage_key": "Object storage key.",
       "sha256": "Export artifact checksum.",
+      "byte_size": "Artifact byte size.",
+      "inline_content": "MVP-only inline artifact content. Production exports should use storage_key.",
       "created_at": "Export timestamp."
     }
   }
 }
-
