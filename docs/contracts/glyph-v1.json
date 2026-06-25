@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "contract": "calligraphy.glyph.v1",
+  "description": "Glyph metadata and source copybook contract for Nebula Calligraphy.",
+  "glyph": {
+    "required": [
+      "glyph_id",
+      "character",
+      "style",
+      "copybook_id",
+      "source_image",
+      "crop_box",
+      "license_status"
+    ],
+    "fields": {
+      "glyph_id": "Stable glyph identifier.",
+      "character": "Unicode character.",
+      "pinyin": "Optional pinyin.",
+      "radical": "Optional radical.",
+      "stroke_count": "Optional stroke count.",
+      "style": "Calligraphy style such as ou, yan, liu, zhao.",
+      "calligrapher": "Calligrapher name.",
+      "copybook_id": "Source copybook identifier.",
+      "source_image": "Object storage key or URL for the source page image.",
+      "crop_box": {
+        "x": "Left coordinate in source image pixels.",
+        "y": "Top coordinate in source image pixels.",
+        "width": "Crop width in pixels.",
+        "height": "Crop height in pixels."
+      },
+      "license_status": "public_domain, licensed, restricted, or pending_review",
+      "review_status": "draft, expert_reviewed, published, or rejected"
+    }
+  }
+}
+

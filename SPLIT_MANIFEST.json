@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "repository": "nebula-calligraphy",
+  "target": "github.com/zyxof2016/nebula-calligraphy",
+  "type": "consumer_product",
+  "sourceRepository": "new-product-line",
+  "sourceCommit": "",
+  "generatedAt": "2026-06-25T00:00:00+08:00",
+  "owns": [
+    "calligraphy_mobile_app",
+    "calligraphy_api",
+    "copybook_glyph_library",
+    "calligraphy_layout_engine",
+    "artwork_export"
+  ],
+  "currentPaths": [
+    "apps/mobile",
+    "web/admin",
+    "services/calligraphy",
+    "pkg",
+    "docs/products",
+    "docs/contracts",
+    "docs/superpowers"
+  ],
+  "splitPhase": "mvp_runtime"
+}

@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "contract": "calligraphy.layout.v1",
+  "description": "Artwork layout request and result contract for copybook-based calligraphy composition.",
+  "layoutRequest": {
+    "required": [
+      "text",
+      "style",
+      "paper",
+      "direction"
+    ],
+    "fields": {
+      "text": "Text to compose. Punctuation may be omitted for traditional calligraphy layout.",
+      "style": "Target style such as ou or yan.",
+      "copybook_id": "Optional preferred copybook.",
+      "paper": {
+        "format": "zhongtang, tiaofu, doufang, couplet, fan, or custom.",
+        "width_cm": "Paper width in centimeters.",
+        "height_cm": "Paper height in centimeters."
+      },
+      "direction": "vertical_rtl or horizontal_ltr.",
+      "margin_cm": "Optional margin override.",
+      "signature": {
+        "text": "Optional inscription text."
+      },
+      "seal_count": "Optional expected seal count."
+    }
+  },
+  "layoutResult": {
+    "fields": {
+      "layout_id": "Preview layout identifier.",
+      "normalized_text": "Text after removing punctuation and whitespace for traditional layout.",
+      "character_count": "Number of positioned characters.",
+      "style": "Resolved target style.",
+      "copybook_id": "Resolved preferred copybook, when provided.",
+      "paper": "Resolved paper spec.",
+      "direction": "Resolved writing direction.",
+      "margin_cm": "Resolved margin in centimeters.",
+      "columns": "Calculated column count.",
+      "rows": "Calculated row count.",
+      "glyph_size_cm": "Recommended glyph size in centimeters.",
+      "slots": "Ordered character positions.",
+      "signature_slots": "Suggested inscription positions.",
+      "seal_slots": "Suggested seal positions."
+    }
+  }
+}

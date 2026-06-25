@@ -1,0 +1,10 @@
+.PHONY: split-check
+split-check:
+	@echo "contract json check"
+	@find docs/contracts -name '*.json' -print0 | xargs -0 -r -n 1 python3 -m json.tool >/dev/null
+	@echo "calligraphy service tests"
+	@cd services/calligraphy && GOCACHE=/tmp/nebula-calligraphy-go-cache go test ./...
+
+.PHONY: split-deploy-test
+split-deploy-test:
+	@cd services/calligraphy && GOCACHE=/tmp/nebula-calligraphy-go-cache go test ./...

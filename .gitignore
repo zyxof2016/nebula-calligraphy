@@ -1,0 +1,55 @@
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Local environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs / temp
+*.log
+logs/
+tmp/
+temp/
+
+# Go
+bin/
+*.test
+coverage.out
+coverage.html
+vendor/
+
+# Flutter
+apps/mobile/.dart_tool/
+apps/mobile/.devtools/
+apps/mobile/build/
+apps/mobile/.flutter-plugins
+apps/mobile/.flutter-plugins-dependencies
+apps/mobile/.metadata
+apps/mobile/*.iml
+apps/mobile/android/.gradle/
+apps/mobile/android/.kotlin/
+apps/mobile/android/local.properties
+
+# Web admin
+node_modules/
+web/admin/node_modules/
+web/admin/dist/
+web/admin/*.tsbuildinfo
+
+# Build outputs
+dist/
+build/
+out/
+
+# Generated files
+*.pb.go
+*_gen.go
+
