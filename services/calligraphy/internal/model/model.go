@@ -176,3 +176,19 @@ type LearningProfile struct {
 	FavoriteCount   int              `json:"favorite_count"`
 	LastPracticedAt string           `json:"last_practiced_at,omitempty"`
 }
+
+type AuthRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type User struct {
+	UserID    string `json:"user_id"`
+	Username  string `json:"username"`
+	CreatedAt string `json:"created_at"`
+}
+
+type AuthSession struct {
+	Token string `json:"token"`
+	User  User   `json:"user"`
+}

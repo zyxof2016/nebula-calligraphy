@@ -17,10 +17,34 @@
           <span id="status" class="status">待预览</span>
         </header>
 
+        <section class="panel auth-panel">
+          <div class="panel-head">
+            <h2>账号</h2>
+            <button id="logoutButton" type="button" class="ghost">退出</button>
+          </div>
+          <p id="authState" class="meta">未登录</p>
+          <p id="authMode" class="meta">认证模式：加载中</p>
+          <div class="grid two">
+            <label>
+              用户名
+              <input id="authUsername" value="learner" autocomplete="username" />
+            </label>
+            <label>
+              密码
+              <input id="authPassword" type="password" value="secret123" autocomplete="current-password" />
+            </label>
+          </div>
+          <div class="actions two-actions">
+            <button id="registerButton" type="button">注册</button>
+            <button id="loginButton" type="button" class="ghost">登录</button>
+          </div>
+          <input id="ownerUserId" type="hidden" value="" />
+        </section>
+
         <section class="panel">
           <label>
-            用户
-            <input id="ownerUserId" value="trial-user" autocomplete="off" />
+            当前用户
+            <input id="ownerDisplay" value="未登录" readonly />
           </label>
 
           <label>

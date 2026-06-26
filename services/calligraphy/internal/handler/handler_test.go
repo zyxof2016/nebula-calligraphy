@@ -118,10 +118,12 @@ func TestPreviewLayout(t *testing.T) {
 
 func TestCreateAndGetArtworkDraft(t *testing.T) {
 	router := newTestRouter()
-	body := []byte(`{"owner_user_id":"user-1","layout":{"text":"山水清音","paper":{"format":"doufang","width_cm":69,"height_cm":68}}}`)
+	session := registerTestSession(t, router, "learner-a")
+	body := []byte(`{"layout":{"text":"山水清音","paper":{"format":"doufang","width_cm":69,"height_cm":68}}}`)
 
 	createRec := httptest.NewRecorder()
 	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/artworks/drafts", bytes.NewReader(body))
+	addBearer(createReq, session.Token)
 	router.ServeHTTP(createRec, createReq)
 
 	if createRec.Code != http.StatusCreated {
@@ -135,9 +137,13 @@ func TestCreateAndGetArtworkDraft(t *testing.T) {
 	if created.ArtworkID == "" {
 		t.Fatal("ArtworkID is empty")
 	}
+	if created.OwnerUserID != session.User.UserID {
+		t.Fatalf("OwnerUserID = %q, want authenticated user %q", created.OwnerUserID, session.User.UserID)
+	}
 
 	getRec := httptest.NewRecorder()
 	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/calligraphy/artworks/drafts/"+created.ArtworkID, nil)
+	addBearer(getReq, session.Token)
 	router.ServeHTTP(getRec, getReq)
 
 	if getRec.Code != http.StatusOK {
@@ -147,13 +153,16 @@ func TestCreateAndGetArtworkDraft(t *testing.T) {
 
 func TestListArtworkDraftsByOwner(t *testing.T) {
 	router := newTestRouter()
-	body := []byte(`{"owner_user_id":"user-1","layout":{"text":"山水","paper":{"format":"doufang","width_cm":69,"height_cm":68}}}`)
+	session := registerTestSession(t, router, "learner-b")
+	body := []byte(`{"layout":{"text":"山水","paper":{"format":"doufang","width_cm":69,"height_cm":68}}}`)
 
 	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/artworks/drafts", bytes.NewReader(body))
+	addBearer(createReq, session.Token)
 	router.ServeHTTP(httptest.NewRecorder(), createReq)
 
 	listRec := httptest.NewRecorder()
-	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/calligraphy/artworks/drafts?owner_user_id=user-1", nil)
+	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/calligraphy/artworks/drafts?owner_user_id="+session.User.UserID, nil)
+	addBearer(listReq, session.Token)
 	router.ServeHTTP(listRec, listReq)
 
 	if listRec.Code != http.StatusOK {
@@ -173,10 +182,12 @@ func TestListArtworkDraftsByOwner(t *testing.T) {
 
 func TestDeleteArtworkDraft(t *testing.T) {
 	router := newTestRouter()
-	body := []byte(`{"owner_user_id":"user-1","layout":{"text":"山水","paper":{"format":"doufang","width_cm":69,"height_cm":68}}}`)
+	session := registerTestSession(t, router, "learner-c")
+	body := []byte(`{"layout":{"text":"山水","paper":{"format":"doufang","width_cm":69,"height_cm":68}}}`)
 
 	createRec := httptest.NewRecorder()
 	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/artworks/drafts", bytes.NewReader(body))
+	addBearer(createReq, session.Token)
 	router.ServeHTTP(createRec, createReq)
 
 	var created model.ArtworkDraft
@@ -186,6 +197,7 @@ func TestDeleteArtworkDraft(t *testing.T) {
 
 	deleteRec := httptest.NewRecorder()
 	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/v1/calligraphy/artworks/drafts/"+created.ArtworkID, nil)
+	addBearer(deleteReq, session.Token)
 	router.ServeHTTP(deleteRec, deleteReq)
 
 	if deleteRec.Code != http.StatusNoContent {
@@ -194,6 +206,7 @@ func TestDeleteArtworkDraft(t *testing.T) {
 
 	getRec := httptest.NewRecorder()
 	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/calligraphy/artworks/drafts/"+created.ArtworkID, nil)
+	addBearer(getReq, session.Token)
 	router.ServeHTTP(getRec, getReq)
 
 	if getRec.Code != http.StatusNotFound {
@@ -203,10 +216,12 @@ func TestDeleteArtworkDraft(t *testing.T) {
 
 func TestExportArtworkDraftSVG(t *testing.T) {
 	router := newTestRouter()
-	body := []byte(`{"owner_user_id":"user-1","layout":{"text":"山水","paper":{"format":"doufang","width_cm":69,"height_cm":68}}}`)
+	session := registerTestSession(t, router, "learner-d")
+	body := []byte(`{"layout":{"text":"山水","paper":{"format":"doufang","width_cm":69,"height_cm":68}}}`)
 
 	createRec := httptest.NewRecorder()
 	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/artworks/drafts", bytes.NewReader(body))
+	addBearer(createReq, session.Token)
 	router.ServeHTTP(createRec, createReq)
 
 	var created model.ArtworkDraft
@@ -217,6 +232,7 @@ func TestExportArtworkDraftSVG(t *testing.T) {
 	exportBody := []byte(`{"format":"svg","template_type":"reference"}`)
 	exportRec := httptest.NewRecorder()
 	exportReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/artworks/drafts/"+created.ArtworkID+"/exports", bytes.NewReader(exportBody))
+	addBearer(exportReq, session.Token)
 	router.ServeHTTP(exportRec, exportReq)
 
 	if exportRec.Code != http.StatusCreated {
@@ -237,9 +253,11 @@ func TestExportArtworkDraftSVG(t *testing.T) {
 
 func TestLearningProfileRoutes(t *testing.T) {
 	router := newTestRouter()
+	session := registerTestSession(t, router, "learner-e")
 
 	favoriteRec := httptest.NewRecorder()
-	favoriteReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/users/user-1/favorites", bytes.NewReader([]byte(`{"glyph_id":"ou-common-人"}`)))
+	favoriteReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/users/"+session.User.UserID+"/favorites", bytes.NewReader([]byte(`{"glyph_id":"ou-common-人"}`)))
+	addBearer(favoriteReq, session.Token)
 	router.ServeHTTP(favoriteRec, favoriteReq)
 
 	if favoriteRec.Code != http.StatusCreated {
@@ -247,7 +265,8 @@ func TestLearningProfileRoutes(t *testing.T) {
 	}
 
 	practiceRec := httptest.NewRecorder()
-	practiceReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/users/user-1/practice", bytes.NewReader([]byte(`{"glyph_id":"ou-common-人","template_type":"copy","grid_type":"mi"}`)))
+	practiceReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/users/"+session.User.UserID+"/practice", bytes.NewReader([]byte(`{"glyph_id":"ou-common-人","template_type":"copy","grid_type":"mi"}`)))
+	addBearer(practiceReq, session.Token)
 	router.ServeHTTP(practiceRec, practiceReq)
 
 	if practiceRec.Code != http.StatusCreated {
@@ -255,7 +274,8 @@ func TestLearningProfileRoutes(t *testing.T) {
 	}
 
 	profileRec := httptest.NewRecorder()
-	profileReq := httptest.NewRequest(http.MethodGet, "/api/v1/calligraphy/users/user-1/learning", nil)
+	profileReq := httptest.NewRequest(http.MethodGet, "/api/v1/calligraphy/users/"+session.User.UserID+"/learning", nil)
+	addBearer(profileReq, session.Token)
 	router.ServeHTTP(profileRec, profileReq)
 
 	if profileRec.Code != http.StatusOK {
@@ -274,6 +294,97 @@ func TestLearningProfileRoutes(t *testing.T) {
 	}
 }
 
+func TestAuthRegisterLoginAndMeRoutes(t *testing.T) {
+	router := newTestRouter()
+
+	registerRec := httptest.NewRecorder()
+	registerReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/auth/register", bytes.NewReader([]byte(`{"username":"learner","password":"secret123"}`)))
+	router.ServeHTTP(registerRec, registerReq)
+
+	if registerRec.Code != http.StatusCreated {
+		t.Fatalf("register status = %d, want 201: %s", registerRec.Code, registerRec.Body.String())
+	}
+
+	var registered model.AuthSession
+	if err := json.Unmarshal(registerRec.Body.Bytes(), &registered); err != nil {
+		t.Fatalf("json.Unmarshal(register) error = %v", err)
+	}
+	if registered.Token == "" || registered.User.UserID == "" || registered.User.Username != "learner" {
+		t.Fatalf("registered = %#v, want token and learner user", registered)
+	}
+
+	meRec := httptest.NewRecorder()
+	meReq := httptest.NewRequest(http.MethodGet, "/api/v1/calligraphy/auth/me", nil)
+	meReq.Header.Set("Authorization", "Bearer "+registered.Token)
+	router.ServeHTTP(meRec, meReq)
+
+	if meRec.Code != http.StatusOK {
+		t.Fatalf("me status = %d, want 200: %s", meRec.Code, meRec.Body.String())
+	}
+
+	var me model.User
+	if err := json.Unmarshal(meRec.Body.Bytes(), &me); err != nil {
+		t.Fatalf("json.Unmarshal(me) error = %v", err)
+	}
+	if me.UserID != registered.User.UserID {
+		t.Fatalf("me UserID = %q, want %q", me.UserID, registered.User.UserID)
+	}
+
+	loginRec := httptest.NewRecorder()
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/auth/login", bytes.NewReader([]byte(`{"username":"learner","password":"secret123"}`)))
+	router.ServeHTTP(loginRec, loginReq)
+
+	if loginRec.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want 200: %s", loginRec.Code, loginRec.Body.String())
+	}
+
+	logoutRec := httptest.NewRecorder()
+	logoutReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/auth/logout", nil)
+	logoutReq.Header.Set("Authorization", "Bearer "+registered.Token)
+	router.ServeHTTP(logoutRec, logoutReq)
+
+	if logoutRec.Code != http.StatusNoContent {
+		t.Fatalf("logout status = %d, want 204: %s", logoutRec.Code, logoutRec.Body.String())
+	}
+
+	afterLogoutRec := httptest.NewRecorder()
+	afterLogoutReq := httptest.NewRequest(http.MethodGet, "/api/v1/calligraphy/auth/me", nil)
+	afterLogoutReq.Header.Set("Authorization", "Bearer "+registered.Token)
+	router.ServeHTTP(afterLogoutRec, afterLogoutReq)
+
+	if afterLogoutRec.Code != http.StatusUnauthorized {
+		t.Fatalf("me after logout status = %d, want 401", afterLogoutRec.Code)
+	}
+}
+
+func TestUserAssetsRequireAuthenticatedOwner(t *testing.T) {
+	router := newTestRouter()
+	session := registerTestSession(t, router, "owner-a")
+
+	unauthRec := httptest.NewRecorder()
+	unauthReq := httptest.NewRequest(http.MethodGet, "/api/v1/calligraphy/artworks/drafts?owner_user_id="+session.User.UserID, nil)
+	router.ServeHTTP(unauthRec, unauthReq)
+	if unauthRec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauth list status = %d, want 401", unauthRec.Code)
+	}
+
+	createRec := httptest.NewRecorder()
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/artworks/drafts", bytes.NewReader([]byte(`{"owner_user_id":"user-other","layout":{"text":"山水","paper":{"format":"doufang","width_cm":69,"height_cm":68}}}`)))
+	addBearer(createReq, session.Token)
+	router.ServeHTTP(createRec, createReq)
+	if createRec.Code != http.StatusForbidden {
+		t.Fatalf("spoof create status = %d, want 403: %s", createRec.Code, createRec.Body.String())
+	}
+
+	favoriteRec := httptest.NewRecorder()
+	favoriteReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/users/user-other/favorites", bytes.NewReader([]byte(`{"glyph_id":"ou-common-人"}`)))
+	addBearer(favoriteReq, session.Token)
+	router.ServeHTTP(favoriteRec, favoriteReq)
+	if favoriteRec.Code != http.StatusForbidden {
+		t.Fatalf("spoof favorite status = %d, want 403: %s", favoriteRec.Code, favoriteRec.Body.String())
+	}
+}
+
 func newTestRouter() http.Handler {
 	router := chi.NewRouter()
 	layout := service.NewLayoutEngine()
@@ -283,6 +394,27 @@ func newTestRouter() http.Handler {
 		layout,
 		service.NewArtworkService(service.NewInMemoryArtworkStore(), layout, service.NewSVGRenderer()),
 		service.NewLearningService(service.NewInMemoryLearningStore(), catalog),
+		service.NewAuthService(service.NewInMemoryAuthStore()),
+		service.NoopAuditLogger{},
 	))
 	return router
+}
+
+func registerTestSession(t *testing.T, router http.Handler, username string) model.AuthSession {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/auth/register", bytes.NewReader([]byte(`{"username":"`+username+`","password":"secret123"}`)))
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("register status = %d, want 201: %s", rec.Code, rec.Body.String())
+	}
+	var session model.AuthSession
+	if err := json.Unmarshal(rec.Body.Bytes(), &session); err != nil {
+		t.Fatalf("json.Unmarshal(session) error = %v", err)
+	}
+	return session
+}
+
+func addBearer(req *http.Request, token string) {
+	req.Header.Set("Authorization", "Bearer "+token)
 }

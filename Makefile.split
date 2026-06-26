@@ -7,6 +7,9 @@ split-check:
 	@test -f web/app/styles.css
 	@test -f web/app/app.js
 	@if command -v node >/dev/null 2>&1; then node --check web/app/app.js >/dev/null; else echo "node not found, skip web js syntax check"; fi
+	@if command -v node >/dev/null 2>&1; then node scripts/calligraphy-web-auth-test.mjs; else echo "node not found, skip web auth flow test"; fi
+	@echo "shell script syntax check"
+	@find scripts -name '*.sh' -print0 | xargs -0 -r -n 1 bash -n
 	@echo "calligraphy service tests"
 	@cd services/calligraphy && GOCACHE=/tmp/nebula-calligraphy-go-cache go test ./...
 

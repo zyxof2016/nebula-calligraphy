@@ -161,6 +161,15 @@ textarea:focus {
   gap: 10px;
 }
 
+.actions.two-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.auth-panel {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 14px;
+}
+
 button,
 .download {
   min-height: 40px;
@@ -177,6 +186,11 @@ button,
 button:hover,
 .download:hover {
   background: var(--accent-dark);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 button.ghost {

@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "contract": "calligraphy.auth.v1",
+  "description": "Local MVP authentication contract for Nebula Calligraphy before Nebula Identity is wired.",
+  "authRequest": {
+    "required": [
+      "username",
+      "password"
+    ],
+    "fields": {
+      "username": "Learner login name. MVP normalizes to lowercase and requires at least 3 characters.",
+      "password": "Learner password. MVP requires at least 8 characters and stores only a salted derived hash."
+    }
+  },
+  "user": {
+    "required": [
+      "user_id",
+      "username",
+      "created_at"
+    ],
+    "fields": {
+      "user_id": "Stable local user id used as owner_user_id for drafts, favorites, and practice records.",
+      "username": "Normalized display/login username.",
+      "created_at": "User creation timestamp."
+    }
+  },
+  "authSession": {
+    "fields": {
+      "token": "Server-side session token returned after register or login.",
+      "user": "Authenticated user object."
+    }
+  },
+  "endpoints": {
+    "POST /api/v1/calligraphy/auth/register": "Create a local MVP account and return a session.",
+    "POST /api/v1/calligraphy/auth/login": "Verify username/password and return a session.",
+    "POST /api/v1/calligraphy/auth/logout": "Revoke the current Bearer token.",
+    "GET /api/v1/calligraphy/auth/me": "Resolve the current user from Authorization: Bearer <token>."
+  },
+  "security": {
+    "ownerScopedEndpoints": "Draft, favorite, practice, and learning-profile endpoints require Authorization: Bearer <token>.",
+    "ownerEnforcement": "The effective owner is the authenticated user. Requests with mismatched owner_user_id or path owner ids are rejected with 403.",
+    "loginLockout": "Repeated failed login attempts are temporarily locked.",
+    "audit": "Register, login, logout, draft mutation, export, favorite mutation, and practice events should be written to the configured audit log."
+  }
+}

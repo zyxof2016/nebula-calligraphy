@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "contract": "calligraphy.foundation.v1",
+  "description": "Runtime foundation profile and external dependency contract for Nebula Calligraphy deployments.",
+  "runtimeProfiles": {
+    "trial": "Default local development profile. Missing persistence settings fall back to memory.",
+    "production": "Controlled production-trial profile. Requires local persistent files for auth, drafts, learning, audit, exports, and web app assets.",
+    "managed": "External foundation profile. Requires database, identity, object storage, audit sink, and web app configuration."
+  },
+  "productionRequiredEnv": [
+    "CALLIGRAPHY_AUTH_FILE",
+    "CALLIGRAPHY_DATA_FILE",
+    "CALLIGRAPHY_LEARNING_FILE",
+    "CALLIGRAPHY_AUDIT_FILE",
+    "CALLIGRAPHY_EXPORT_DIR",
+    "CALLIGRAPHY_WEB_DIR"
+  ],
+  "managedRequiredEnv": [
+    "CALLIGRAPHY_DATABASE_URL",
+    "CALLIGRAPHY_IDENTITY_ISSUER",
+    "CALLIGRAPHY_IDENTITY_BASE_URL",
+    "CALLIGRAPHY_OBJECT_STORAGE_ENDPOINT",
+    "CALLIGRAPHY_OBJECT_STORAGE_BUCKET",
+    "CALLIGRAPHY_OBJECT_STORAGE_REGION",
+    "CALLIGRAPHY_OBJECT_STORAGE_ACCESS_KEY",
+    "CALLIGRAPHY_OBJECT_STORAGE_SECRET_KEY",
+    "CALLIGRAPHY_AUDIT_SINK",
+    "CALLIGRAPHY_WEB_DIR"
+  ],
+  "managedAlternativeEnv": {
+    "browserAuth": [
+      "CALLIGRAPHY_AUTH_MODE",
+      "CALLIGRAPHY_IDENTITY_CLIENT_ID",
+      "CALLIGRAPHY_IDENTITY_AUTHORIZATION_ENDPOINT",
+      "CALLIGRAPHY_IDENTITY_TOKEN_ENDPOINT",
+      "CALLIGRAPHY_IDENTITY_LOGIN_ENDPOINT"
+    ],
+    "identityVerifier": [
+      "CALLIGRAPHY_IDENTITY_JWKS_URL",
+      "CALLIGRAPHY_IDENTITY_HS256_SECRET"
+    ],
+    "auditAuth": [
+      "CALLIGRAPHY_AUDIT_TOKEN"
+    ]
+  },
+  "operations": {
+    "GET /ready": "Returns readiness and foundation_mode.",
+    "GET /metrics": "Returns Prometheus text metrics for request count and uptime.",
+    "GET /api/v1/calligraphy/runtime-config": "Returns browser-safe runtime profile and Identity login settings without secrets.",
+    "go run ./cmd/calligraphy-migrate": "Applies PostgreSQL tables and indexes required by managed mode.",
+    "scripts/calligraphy-backup.sh": "Backs up local production-trial files and artifact directory.",
+    "scripts/calligraphy-restore.sh": "Restores local production-trial files and artifact directory."
+  },
+  "managedAdapters": {
+    "identity": "JWKS/RS256 Bearer-token verifier using CALLIGRAPHY_IDENTITY_ISSUER and CALLIGRAPHY_IDENTITY_JWKS_URL, or Nebula HS256 token verification using CALLIGRAPHY_IDENTITY_HS256_SECRET. Browser login prefers standard oidc-pkce via CALLIGRAPHY_IDENTITY_BASE_URL and CALLIGRAPHY_IDENTITY_CLIENT_ID, with nebula-direct available as an explicit compatibility fallback.",
+    "persistence": "PostgreSQL stores for local users/sessions compatibility, artwork drafts, favorites, and practice records.",
+    "objectStorage": "S3-compatible PutObject artifact store using CALLIGRAPHY_OBJECT_STORAGE_* settings.",
+    "audit": "HTTP/HTTPS JSON audit-event POST sink using CALLIGRAPHY_AUDIT_SINK and optional CALLIGRAPHY_AUDIT_TOKEN."
+  }
+}

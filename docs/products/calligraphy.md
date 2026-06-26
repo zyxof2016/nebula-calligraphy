@@ -21,12 +21,18 @@ The repository now includes `services/calligraphy`, a Go MVP API service used to
 | API | Status | Notes |
 |-----|--------|-------|
 | `GET /health` | Implemented | Container and process health probe |
+| `GET /ready` | Implemented | Production profile readiness and persistence configuration probe |
+| `GET /metrics` | Implemented | Prometheus text metrics for request count and process uptime |
+| `POST /api/v1/calligraphy/auth/register` | Implemented | Creates a local MVP learner account and returns a session token |
+| `POST /api/v1/calligraphy/auth/login` | Implemented | Verifies credentials and returns a session token |
+| `POST /api/v1/calligraphy/auth/logout` | Implemented | Revokes the current local session token |
+| `GET /api/v1/calligraphy/auth/me` | Implemented | Resolves the current learner from `Authorization: Bearer <token>` |
 | `GET /api/v1/calligraphy/glyphs/search` | Implemented | Searches only licensed and published seed glyphs |
 | `GET /api/v1/calligraphy/glyphs/presets` | Implemented | Returns 120+ preset common learning glyphs per style, grouped by practice purpose |
 | `GET /api/v1/calligraphy/glyphs/{id}` | Implemented | Returns glyph detail, structure notes, brushwork notes, and practice templates |
 | `POST /api/v1/calligraphy/layouts/preview` | Implemented | Traditional `vertical_rtl` layout preview with margin, signature, and seal slots |
 | `POST /api/v1/calligraphy/artworks/drafts` | Implemented | Saves an artwork draft from a layout request; memory by default, JSON file when configured |
-| `GET /api/v1/calligraphy/artworks/drafts` | Implemented | Lists drafts by `owner_user_id`; Identity middleware is not wired yet |
+| `GET /api/v1/calligraphy/artworks/drafts` | Implemented | Lists drafts for the authenticated owner; mismatched owner ids are rejected |
 | `DELETE /api/v1/calligraphy/artworks/drafts/{id}` | Implemented | Deletes one trial draft |
 | `POST /api/v1/calligraphy/artworks/drafts/{id}/exports` | Implemented | Produces an SVG reference export with SHA256; inline by default, local artifact file when configured |
 | `GET /api/v1/calligraphy/users/{id}/learning` | Implemented | Returns favorite glyphs, recent practice records, and learning counters |
@@ -34,9 +40,9 @@ The repository now includes `services/calligraphy`, a Go MVP API service used to
 | `DELETE /api/v1/calligraphy/users/{id}/favorites/{glyph_id}` | Implemented | Removes one learner favorite |
 | `POST /api/v1/calligraphy/users/{id}/practice` | Implemented | Records one glyph practice action with template and grid type |
 | `GET /artifacts/{storage_key}` | Implemented | Serves local SVG exports when `CALLIGRAPHY_EXPORT_DIR` is configured |
-| Static trial workbench | Implemented | Served from `web/app` through `CALLIGRAPHY_WEB_DIR`; supports preset common glyphs, glyph lookup/detail, practice template preview/download, favorites, practice records, learning profile, composition preview, save, list, load, delete, export history, and SVG export/download |
+| Static trial workbench | Implemented | Served from `web/app` through `CALLIGRAPHY_WEB_DIR`; supports local registration/login, preset common glyphs, glyph lookup/detail, practice template preview/download, favorites, practice records, learning profile, composition preview, save, list, load, delete, export history, and SVG export/download |
 
-This service can persist drafts and learning records to local JSON files for trials, but it does not yet provide production persistence or object storage. Those features must be added with Identity, PostgreSQL, object storage, audit, and licensed copybook ingestion.
+This service can persist local users, drafts, learning records, audit logs, and SVG exports to local files for controlled production trials. User-owned draft, favorite, practice, and learning-profile endpoints require a Bearer token and reject mismatched owner ids; repeated failed logins are temporarily locked. Managed foundation mode validates PostgreSQL, Identity, object storage, and audit sink configuration before startup, uses PostgreSQL stores for user/session and learner assets, verifies Nebula Identity-compatible JWKS/RS256 or HS256 Bearer tokens, exposes browser-safe runtime auth settings, prefers OIDC Authorization Code + PKCE for managed browser login, keeps Nebula Identity direct login as a compatibility fallback, and writes exports through an S3-compatible object store. Large-scale commercial production still needs licensed copybook ingestion and operational runbooks for the selected cloud services.
 
 ## Foundation Integration
 

@@ -1,4 +1,28 @@
+const TOKEN_KEY = "calligraphy.auth_token";
+const PKCE_VERIFIER_KEY = "calligraphy.pkce_verifier";
+const OIDC_STATE_KEY = "calligraphy.oidc_state";
+const OIDC_NONCE_KEY = "calligraphy.oidc_nonce";
+
+function defaultRuntimeConfig() {
+  return {
+    runtime_profile: "trial",
+    auth_mode: "local",
+    identity_base_url: "",
+    identity_client_id: "",
+    identity_authorization_endpoint: "",
+    identity_token_endpoint: "",
+    identity_login_endpoint: "",
+  };
+}
+
+function readStoredToken() {
+  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || "";
+}
+
 const state = {
+  runtime: defaultRuntimeConfig(),
+  authToken: readStoredToken(),
+  user: null,
   layout: null,
   draft: null,
   svg: "",
@@ -9,7 +33,15 @@ const state = {
 };
 
 const els = {
+  authUsername: document.querySelector("#authUsername"),
+  authPassword: document.querySelector("#authPassword"),
+  authState: document.querySelector("#authState"),
+  authMode: document.querySelector("#authMode"),
+  registerButton: document.querySelector("#registerButton"),
+  loginButton: document.querySelector("#loginButton"),
+  logoutButton: document.querySelector("#logoutButton"),
   ownerUserId: document.querySelector("#ownerUserId"),
+  ownerDisplay: document.querySelector("#ownerDisplay"),
   textInput: document.querySelector("#textInput"),
   styleInput: document.querySelector("#styleInput"),
   formatInput: document.querySelector("#formatInput"),
@@ -59,9 +91,6 @@ function layoutRequest() {
 }
 
 function validateForm() {
-  if (!els.ownerUserId.value.trim()) {
-    throw new Error("请输入用户");
-  }
   if (!els.textInput.value.trim()) {
     throw new Error("请输入正文");
   }
@@ -81,15 +110,320 @@ function validateForm() {
 }
 
 async function api(path, options = {}) {
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (state.authToken && !headers.Authorization) {
+    headers.Authorization = `Bearer ${state.authToken}`;
+  }
   const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
     ...options,
+    headers,
   });
   const payload = await response.json();
   if (!response.ok) {
     throw new Error(payload.message || "request failed");
   }
   return payload;
+}
+
+async function apiNoContent(path, options = {}) {
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (state.authToken && !headers.Authorization) {
+    headers.Authorization = `Bearer ${state.authToken}`;
+  }
+  const response = await fetch(path, { ...options, headers });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.message || "request failed");
+  }
+}
+
+async function loadRuntimeConfig() {
+  try {
+    const config = await api("/api/v1/calligraphy/runtime-config");
+    state.runtime = { ...defaultRuntimeConfig(), ...config };
+  } catch {
+    state.runtime = defaultRuntimeConfig();
+  }
+}
+
+function currentAuthMode() {
+  return state.runtime.auth_mode || "local";
+}
+
+async function register() {
+  if (currentAuthMode() !== "local") {
+    throw new Error("托管模式请使用统一 Identity 登录");
+  }
+  const session = await api("/api/v1/calligraphy/auth/register", {
+    method: "POST",
+    body: JSON.stringify(authRequest()),
+  });
+  applySession(session);
+  await loadUserData();
+  setStatus("已注册", "ok");
+}
+
+async function login() {
+  if (currentAuthMode() === "nebula-direct") {
+    await loginWithNebulaIdentity();
+    return;
+  }
+  if (currentAuthMode() === "oidc-pkce") {
+    await startOIDCLogin();
+    return;
+  }
+  const session = await api("/api/v1/calligraphy/auth/login", {
+    method: "POST",
+    body: JSON.stringify(authRequest()),
+  });
+  applySession(session);
+  await loadUserData();
+  setStatus("已登录", "ok");
+}
+
+async function restoreSession() {
+  state.authToken = readStoredToken();
+  if (!state.authToken) {
+    renderAuth();
+    renderSignedOutData();
+    return;
+  }
+  try {
+    const user = await api("/api/v1/calligraphy/auth/me");
+    state.user = user;
+    els.ownerUserId.value = user.user_id;
+    renderAuth();
+    await loadUserData();
+  } catch {
+    clearSession();
+    renderSignedOutData();
+  }
+}
+
+function authRequest() {
+  return {
+    username: els.authUsername.value,
+    password: els.authPassword.value,
+  };
+}
+
+function applySession(session) {
+  state.authToken = session.token;
+  state.user = session.user;
+  els.ownerUserId.value = session.user.user_id;
+  storeAuthToken(session.token, "persistent");
+  renderAuth();
+}
+
+async function applyIdentityToken(token) {
+  state.authToken = token;
+  storeAuthToken(token, "session");
+  const user = await api("/api/v1/calligraphy/auth/me");
+  state.user = user;
+  els.ownerUserId.value = user.user_id;
+  renderAuth();
+  await loadUserData();
+}
+
+function storeAuthToken(token, persistence) {
+  if (persistence === "persistent") {
+    localStorage.setItem(TOKEN_KEY, token);
+    sessionStorage.removeItem(TOKEN_KEY);
+    return;
+  }
+  sessionStorage.setItem(TOKEN_KEY, token);
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+function clearStoredAuth() {
+  localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(PKCE_VERIFIER_KEY);
+  sessionStorage.removeItem(OIDC_STATE_KEY);
+  sessionStorage.removeItem(OIDC_NONCE_KEY);
+}
+
+function clearSession() {
+  state.authToken = "";
+  state.user = null;
+  state.draft = null;
+  els.ownerUserId.value = "";
+  clearStoredAuth();
+  renderAuth();
+}
+
+async function logout() {
+  try {
+    if (state.authToken) {
+      await apiNoContent("/api/v1/calligraphy/auth/logout", { method: "POST" });
+    }
+  } finally {
+    clearSession();
+    renderSignedOutData();
+  }
+  setStatus("已退出", "ok");
+}
+
+function renderAuth() {
+  const mode = currentAuthMode();
+  els.authMode.textContent = `认证模式：${authModeLabel(mode)}`;
+  els.registerButton.hidden = mode !== "local";
+  els.authUsername.disabled = mode === "oidc-pkce";
+  els.authPassword.disabled = mode === "oidc-pkce";
+  els.loginButton.textContent = mode === "oidc-pkce" ? "SSO 登录" : mode === "nebula-direct" ? "Identity 登录" : "登录";
+  if (state.user) {
+    els.authState.textContent = `已登录：${state.user.username}`;
+    els.ownerDisplay.value = `${state.user.username} · ${state.user.user_id}`;
+    els.logoutButton.disabled = false;
+    return;
+  }
+  els.authState.textContent = "未登录";
+  els.ownerDisplay.value = "未登录";
+  els.logoutButton.disabled = true;
+}
+
+function authModeLabel(mode) {
+  return {
+    local: "本地试用",
+    "nebula-direct": "Nebula Identity",
+    "oidc-pkce": "OIDC PKCE",
+  }[mode] || mode;
+}
+
+async function loginWithNebulaIdentity() {
+  const endpoint = requireRuntimeEndpoint("identity_login_endpoint", "缺少 Identity 登录端点");
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(authRequest()),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.message || payload.error || "Identity 登录失败");
+  }
+  const token = extractAccessToken(payload);
+  if (!token) {
+    throw new Error("Identity 未返回 access_token");
+  }
+  await applyIdentityToken(token);
+  setStatus("已通过 Identity 登录", "ok");
+}
+
+function extractAccessToken(payload) {
+  return payload.access_token || payload.token || payload.data?.access_token || payload.data?.token || "";
+}
+
+function requireRuntimeEndpoint(field, message) {
+  const value = state.runtime[field];
+  if (!value) {
+    throw new Error(message);
+  }
+  return value;
+}
+
+async function startOIDCLogin() {
+  const authorizationEndpoint = requireRuntimeEndpoint("identity_authorization_endpoint", "缺少 OIDC 授权端点");
+  const clientID = requireRuntimeEndpoint("identity_client_id", "缺少 OIDC client_id");
+  const verifier = randomPKCEString(64);
+  const challenge = await pkceChallenge(verifier);
+  const oidcState = randomPKCEString(32);
+  const nonce = randomPKCEString(32);
+  sessionStorage.setItem(PKCE_VERIFIER_KEY, verifier);
+  sessionStorage.setItem(OIDC_STATE_KEY, oidcState);
+  sessionStorage.setItem(OIDC_NONCE_KEY, nonce);
+
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: clientID,
+    redirect_uri: oidcRedirectURI(),
+    scope: "openid profile email",
+    state: oidcState,
+    nonce,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+  });
+  location.assign(`${authorizationEndpoint}?${params.toString()}`);
+}
+
+async function completeOIDCCallback() {
+  if (currentAuthMode() !== "oidc-pkce") return false;
+  const params = new URLSearchParams(location.search);
+  const code = params.get("code");
+  if (!code) return false;
+  const expectedState = sessionStorage.getItem(OIDC_STATE_KEY);
+  if (!expectedState || params.get("state") !== expectedState) {
+    clearStoredAuth();
+    throw new Error("OIDC state 校验失败");
+  }
+  const verifier = sessionStorage.getItem(PKCE_VERIFIER_KEY);
+  if (!verifier) {
+    throw new Error("OIDC PKCE verifier 已失效，请重新登录");
+  }
+  const tokenEndpoint = requireRuntimeEndpoint("identity_token_endpoint", "缺少 OIDC token 端点");
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    client_id: requireRuntimeEndpoint("identity_client_id", "缺少 OIDC client_id"),
+    code,
+    redirect_uri: oidcRedirectURI(),
+    code_verifier: verifier,
+  });
+  const response = await fetch(tokenEndpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error_description || payload.error || "OIDC token 换取失败");
+  }
+  const token = extractAccessToken(payload);
+  if (!token) {
+    throw new Error("OIDC token 响应缺少 access_token");
+  }
+  clearStoredAuth();
+  history.replaceState({}, document.title, `${location.origin}${location.pathname}${location.hash || ""}`);
+  await applyIdentityToken(token);
+  setStatus("已完成 SSO 登录", "ok");
+  return true;
+}
+
+function oidcRedirectURI() {
+  return `${location.origin}${location.pathname}`;
+}
+
+function randomPKCEString(byteLength) {
+  const bytes = new Uint8Array(byteLength);
+  crypto.getRandomValues(bytes);
+  return base64Url(bytes);
+}
+
+async function pkceChallenge(verifier) {
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return base64Url(new Uint8Array(digest));
+}
+
+function base64Url(bytes) {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+function renderSignedOutData() {
+  els.draftList.innerHTML = '<li class="empty">登录后查看草稿</li>';
+  renderLearningProfile({ favorites: [], recent_practice: [], favorite_count: 0, practice_count: 0 });
+}
+
+async function loadUserData() {
+  await Promise.all([loadDrafts(), loadLearningProfile()]);
+}
+
+function ensureAuthenticated() {
+  if (!state.user?.user_id) {
+    throw new Error("请先注册或登录");
+  }
 }
 
 function setStatus(text, type = "") {
@@ -162,6 +496,7 @@ async function preview() {
 
 async function saveDraft() {
   validateForm();
+  ensureAuthenticated();
   setStatus("保存中");
   const draft = await api("/api/v1/calligraphy/artworks/drafts", {
     method: "POST",
@@ -309,6 +644,7 @@ function renderPracticeTemplate(character, template) {
 
 async function addFavorite() {
   if (!state.glyphDetail) return;
+  ensureAuthenticated();
   await api(`/api/v1/calligraphy/users/${encodeURIComponent(currentOwner())}/favorites`, {
     method: "POST",
     body: JSON.stringify({ glyph_id: state.glyphDetail.glyph.glyph_id }),
@@ -319,6 +655,7 @@ async function addFavorite() {
 
 async function recordPractice() {
   if (!state.glyphDetail) return;
+  ensureAuthenticated();
   const template = state.practiceTemplate || state.glyphDetail.practice_templates[0];
   await api(`/api/v1/calligraphy/users/${encodeURIComponent(currentOwner())}/practice`, {
     method: "POST",
@@ -363,6 +700,10 @@ function jiugongGrid() {
 }
 
 async function loadDrafts() {
+  if (!state.user?.user_id) {
+    renderSignedOutData();
+    return;
+  }
   const owner = encodeURIComponent(currentOwner());
   const payload = await api(`/api/v1/calligraphy/artworks/drafts?owner_user_id=${owner}`);
   els.draftList.innerHTML = "";
@@ -402,6 +743,10 @@ async function loadDrafts() {
 }
 
 async function loadLearningProfile() {
+  if (!state.user?.user_id) {
+    renderSignedOutData();
+    return;
+  }
   const payload = await api(`/api/v1/calligraphy/users/${encodeURIComponent(currentOwner())}/learning`);
   state.learningProfile = payload;
   renderLearningProfile(payload);
@@ -463,17 +808,15 @@ function renderPractice(records) {
 }
 
 async function deleteFavorite(glyphId) {
-  const response = await fetch(`/api/v1/calligraphy/users/${encodeURIComponent(currentOwner())}/favorites/${encodeURIComponent(glyphId)}`, { method: "DELETE" });
-  if (!response.ok && response.status !== 404) {
-    const payload = await response.json();
-    throw new Error(payload.message || "delete favorite failed");
-  }
+  ensureAuthenticated();
+  await apiNoContent(`/api/v1/calligraphy/users/${encodeURIComponent(currentOwner())}/favorites/${encodeURIComponent(glyphId)}`, { method: "DELETE" });
   await loadLearningProfile();
   setStatus("已移除", "ok");
 }
 
 async function deleteDraft(artworkId) {
-  await fetch(`/api/v1/calligraphy/artworks/drafts/${artworkId}`, { method: "DELETE" });
+  ensureAuthenticated();
+  await apiNoContent(`/api/v1/calligraphy/artworks/drafts/${artworkId}`, { method: "DELETE" });
   if (state.draft?.artwork_id === artworkId) {
     state.draft = null;
     els.artworkTitle.textContent = "作品预览";
@@ -511,8 +854,8 @@ function renderExports(exports) {
 }
 
 function currentOwner() {
-  const owner = els.ownerUserId.value.trim();
-  if (!owner) throw new Error("请输入用户");
+  const owner = state.user?.user_id || els.ownerUserId.value.trim();
+  if (!owner) throw new Error("请先注册或登录");
   return owner;
 }
 
@@ -549,9 +892,9 @@ els.refreshButton.addEventListener("click", () => loadDrafts().catch(showError))
 els.glyphSearchButton.addEventListener("click", () => searchGlyphs().catch(showError));
 els.presetRefreshButton.addEventListener("click", () => loadPresetGroups().catch(showError));
 els.learningRefreshButton.addEventListener("click", () => loadLearningProfile().catch(showError));
-els.ownerUserId.addEventListener("change", () => {
-  Promise.all([loadDrafts(), loadLearningProfile()]).catch(showError);
-});
+els.registerButton.addEventListener("click", () => register().catch(showError));
+els.loginButton.addEventListener("click", () => login().catch(showError));
+els.logoutButton.addEventListener("click", () => logout().catch(showError));
 els.glyphStyleInput.addEventListener("change", () => {
   searchGlyphs().then(loadPresetGroups).catch(showError);
 });
@@ -564,9 +907,18 @@ function showError(error) {
 els.previewSurface.innerHTML = '<span class="empty">输入正文后生成预览</span>';
 renderExports([]);
 renderLearningProfile({ favorites: [], recent_practice: [], favorite_count: 0, practice_count: 0 });
-preview()
-  .then(loadDrafts)
-  .then(searchGlyphs)
-  .then(loadPresetGroups)
-  .then(loadLearningProfile)
-  .catch(showError);
+renderAuth();
+
+async function init() {
+  await loadRuntimeConfig();
+  renderAuth();
+  const handledOIDCCallback = await completeOIDCCallback();
+  await preview();
+  await searchGlyphs();
+  await loadPresetGroups();
+  if (!handledOIDCCallback) {
+    await restoreSession();
+  }
+}
+
+init().catch(showError);
