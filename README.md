@@ -152,6 +152,22 @@ Prefer `oidc-pkce` for managed production. When `CALLIGRAPHY_AUTH_MODE` is unset
 
 For production, prefer routing Calligraphy and Identity behind the same HTTPS gateway origin. If they must be separate origins, configure Identity CORS to allow only the Calligraphy origin for the login or token endpoints used by the selected auth mode.
 
+Identity must register Calligraphy as an exact-match OIDC public client before `oidc-pkce` is enabled:
+
+```bash
+OIDC_ISSUER=https://identity.example.com
+OIDC_PUBLIC_CLIENTS=nebula-calligraphy-web=https://calligraphy.example.com/
+CORS_ORIGINS=https://calligraphy.example.com
+```
+
+Then configure Calligraphy with the matching client and Identity public base URL:
+
+```bash
+CALLIGRAPHY_AUTH_MODE=oidc-pkce
+CALLIGRAPHY_IDENTITY_BASE_URL=https://identity.example.com
+CALLIGRAPHY_IDENTITY_CLIENT_ID=nebula-calligraphy-web
+```
+
 Before starting managed mode, run the PostgreSQL migration:
 
 ```bash
