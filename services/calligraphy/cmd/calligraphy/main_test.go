@@ -83,6 +83,73 @@ func TestNewRouterAddsSecurityHeaders(t *testing.T) {
 	}
 }
 
+func TestTrialRuntimeAllowsFlutterDevCorsOrigin(t *testing.T) {
+	router, err := newRouter(appConfig{})
+	if err != nil {
+		t.Fatalf("newRouter() error = %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodOptions, "/api/v1/calligraphy/glyphs/search", nil)
+	req.Header.Set("Origin", "http://localhost:8088")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("preflight status = %d, want 204", rec.Code)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:8088" {
+		t.Fatalf("Access-Control-Allow-Origin = %q, want localhost dev origin", got)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "Authorization") {
+		t.Fatalf("Access-Control-Allow-Headers = %q, want Authorization", got)
+	}
+}
+
+func TestManagedRuntimeRequiresExplicitCorsOrigin(t *testing.T) {
+	cfg := appConfig{
+		RuntimeProfile:         "managed",
+		DatabaseURL:            "postgres://calligraphy@example/calligraphy",
+		IdentityIssuer:         "https://identity.example",
+		IdentityBaseURL:        "https://identity.example",
+		IdentityJWKSURL:        "https://identity.example/.well-known/jwks.json",
+		ObjectStorageEndpoint:  "https://s3.example",
+		ObjectStorageBucket:    "calligraphy-prod",
+		ObjectStorageRegion:    "us-east-1",
+		ObjectStorageAccessKey: "access",
+		ObjectStorageSecretKey: "secret",
+		AuditSink:              "https://audit.example/events",
+		WebDir:                 fixtureWebDir(t),
+	}
+	router, err := newRouter(cfg)
+	if err != nil {
+		t.Fatalf("newRouter(managed) error = %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.Header.Set("Origin", "http://localhost:8088")
+	router.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("Access-Control-Allow-Origin = %q, want empty without explicit origin", got)
+	}
+
+	cfg.AllowedOrigins = "https://calligraphy.example"
+	router, err = newRouter(cfg)
+	if err != nil {
+		t.Fatalf("newRouter(managed with origin) error = %v", err)
+	}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.Header.Set("Origin", "https://calligraphy.example")
+	router.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://calligraphy.example" {
+		t.Fatalf("Access-Control-Allow-Origin = %q, want configured origin", got)
+	}
+}
+
 func TestManagedRuntimeConfigExposesOnlyBrowserSafeAuthSettings(t *testing.T) {
 	router, err := newRouter(appConfig{
 		RuntimeProfile:         "managed",

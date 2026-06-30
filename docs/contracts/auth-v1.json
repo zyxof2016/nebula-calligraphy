@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
   "contract": "calligraphy.auth.v1",
-  "description": "Local MVP authentication contract for Nebula Calligraphy before Nebula Identity is wired.",
+  "description": "Nebula Identity 接入前的 Nebula Calligraphy 本地 MVP 认证契约。",
   "authRequest": {
     "required": [
       "username",
       "password"
     ],
     "fields": {
-      "username": "Learner login name. MVP normalizes to lowercase and requires at least 3 characters.",
-      "password": "Learner password. MVP requires at least 8 characters and stores only a salted derived hash."
+      "username": "学习者登录名。MVP 会转为小写，且至少要求 3 个字符。",
+      "password": "学习者密码。MVP 至少要求 8 个字符，并且只保存加盐派生哈希。"
     }
   },
   "user": {
@@ -19,27 +19,27 @@
       "created_at"
     ],
     "fields": {
-      "user_id": "Stable local user id used as owner_user_id for drafts, favorites, and practice records.",
-      "username": "Normalized display/login username.",
-      "created_at": "User creation timestamp."
+      "user_id": "稳定的本地用户 ID，用作草稿、收藏和练习记录的 owner_user_id。",
+      "username": "标准化后的展示/登录用户名。",
+      "created_at": "用户创建时间戳。"
     }
   },
   "authSession": {
     "fields": {
-      "token": "Server-side session token returned after register or login.",
-      "user": "Authenticated user object."
+      "token": "注册或登录后返回的服务端会话令牌。",
+      "user": "已认证用户对象。"
     }
   },
   "endpoints": {
-    "POST /api/v1/calligraphy/auth/register": "Create a local MVP account and return a session.",
-    "POST /api/v1/calligraphy/auth/login": "Verify username/password and return a session.",
-    "POST /api/v1/calligraphy/auth/logout": "Revoke the current Bearer token.",
-    "GET /api/v1/calligraphy/auth/me": "Resolve the current user from Authorization: Bearer <token>."
+    "POST /api/v1/calligraphy/auth/register": "创建本地 MVP 账号并返回会话。",
+    "POST /api/v1/calligraphy/auth/login": "校验用户名和密码并返回会话。",
+    "POST /api/v1/calligraphy/auth/logout": "吊销当前 Bearer 令牌。",
+    "GET /api/v1/calligraphy/auth/me": "通过 Authorization: Bearer <token> 解析当前用户。"
   },
   "security": {
-    "ownerScopedEndpoints": "Draft, favorite, practice, and learning-profile endpoints require Authorization: Bearer <token>.",
-    "ownerEnforcement": "The effective owner is the authenticated user. Requests with mismatched owner_user_id or path owner ids are rejected with 403.",
-    "loginLockout": "Repeated failed login attempts are temporarily locked.",
-    "audit": "Register, login, logout, draft mutation, export, favorite mutation, and practice events should be written to the configured audit log."
+    "ownerScopedEndpoints": "草稿、收藏、练习和学习档案接口都要求 Authorization: Bearer <token>。",
+    "ownerEnforcement": "有效所属用户来自认证用户。owner_user_id 或路径 owner 与认证用户不匹配时返回 403。",
+    "loginLockout": "连续登录失败会触发临时锁定。",
+    "audit": "注册、登录、退出、草稿变更、导出、收藏变更和练习事件应写入配置的审计日志。"
   }
 }

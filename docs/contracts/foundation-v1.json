@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "contract": "calligraphy.foundation.v1",
-  "description": "Runtime foundation profile and external dependency contract for Nebula Calligraphy deployments.",
+  "description": "Nebula Calligraphy 部署的运行时底座形态和外部依赖契约。",
   "runtimeProfiles": {
-    "trial": "Default local development profile. Missing persistence settings fall back to memory.",
-    "production": "Controlled production-trial profile. Requires local persistent files for auth, drafts, learning, audit, exports, and web app assets.",
-    "managed": "External foundation profile. Requires database, identity, object storage, audit sink, and web app configuration."
+    "trial": "默认本地开发形态。缺少持久化配置时回退到内存存储。",
+    "production": "受控生产试用形态。要求为认证、草稿、学习、审计、导出和 Web 应用资产配置本地持久化文件。",
+    "managed": "外部底座托管形态。要求配置数据库、身份服务、对象存储、审计接收端和 Web 应用。"
   },
   "productionRequiredEnv": [
     "CALLIGRAPHY_AUTH_FILE",
@@ -41,20 +41,23 @@
     ],
     "auditAuth": [
       "CALLIGRAPHY_AUDIT_TOKEN"
+    ],
+    "webCors": [
+      "CALLIGRAPHY_ALLOWED_ORIGINS"
     ]
   },
   "operations": {
-    "GET /ready": "Returns readiness and foundation_mode.",
-    "GET /metrics": "Returns Prometheus text metrics for request count and uptime.",
-    "GET /api/v1/calligraphy/runtime-config": "Returns browser-safe runtime profile and Identity login settings without secrets.",
-    "go run ./cmd/calligraphy-migrate": "Applies PostgreSQL tables and indexes required by managed mode.",
-    "scripts/calligraphy-backup.sh": "Backs up local production-trial files and artifact directory.",
-    "scripts/calligraphy-restore.sh": "Restores local production-trial files and artifact directory."
+    "GET /ready": "返回就绪状态和 foundation_mode。",
+    "GET /metrics": "返回 Prometheus 文本指标，包含请求数和运行时长。",
+    "GET /api/v1/calligraphy/runtime-config": "返回浏览器安全的运行时形态和 Identity 登录配置，不包含密钥。",
+    "go run ./cmd/calligraphy-migrate": "应用托管模式需要的 PostgreSQL 表和索引。",
+    "scripts/calligraphy-backup.sh": "备份本地生产试用文件和产物目录。",
+    "scripts/calligraphy-restore.sh": "恢复本地生产试用文件和产物目录。"
   },
   "managedAdapters": {
-    "identity": "JWKS/RS256 Bearer-token verifier using CALLIGRAPHY_IDENTITY_ISSUER and CALLIGRAPHY_IDENTITY_JWKS_URL, or Nebula HS256 token verification using CALLIGRAPHY_IDENTITY_HS256_SECRET. Browser login prefers standard oidc-pkce via CALLIGRAPHY_IDENTITY_BASE_URL and CALLIGRAPHY_IDENTITY_CLIENT_ID, with nebula-direct available as an explicit compatibility fallback.",
-    "persistence": "PostgreSQL stores for local users/sessions compatibility, artwork drafts, favorites, and practice records.",
-    "objectStorage": "S3-compatible PutObject artifact store using CALLIGRAPHY_OBJECT_STORAGE_* settings.",
-    "audit": "HTTP/HTTPS JSON audit-event POST sink using CALLIGRAPHY_AUDIT_SINK and optional CALLIGRAPHY_AUDIT_TOKEN."
+    "identity": "使用 CALLIGRAPHY_IDENTITY_ISSUER 和 CALLIGRAPHY_IDENTITY_JWKS_URL 校验 JWKS/RS256 Bearer 令牌，或使用 CALLIGRAPHY_IDENTITY_HS256_SECRET 校验 Nebula HS256 令牌。浏览器登录优先通过 CALLIGRAPHY_IDENTITY_BASE_URL 和 CALLIGRAPHY_IDENTITY_CLIENT_ID 使用标准 oidc-pkce；nebula-direct 仅作为显式兼容回退。",
+    "persistence": "PostgreSQL 存储本地用户/会话兼容数据、作品草稿、收藏和练习记录。",
+    "objectStorage": "使用 CALLIGRAPHY_OBJECT_STORAGE_* 配置的 S3 兼容 PutObject 产物存储。",
+    "audit": "使用 CALLIGRAPHY_AUDIT_SINK 和可选 CALLIGRAPHY_AUDIT_TOKEN 的 HTTP/HTTPS JSON 审计事件 POST 接收端。"
   }
 }

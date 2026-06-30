@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "contract": "calligraphy.layout.v1",
-  "description": "Artwork layout request and result contract for copybook-based calligraphy composition.",
+  "description": "基于碑帖集字创作的作品章法请求和结果契约。",
   "layoutRequest": {
     "required": [
       "text",
@@ -10,38 +10,38 @@
       "direction"
     ],
     "fields": {
-      "text": "Text to compose. Punctuation may be omitted for traditional calligraphy layout.",
-      "style": "Target style such as ou or yan.",
-      "copybook_id": "Optional preferred copybook.",
+      "text": "需要排版的文本。传统书法章法中可省略标点。",
+      "style": "目标书体，例如 ou 或 yan。",
+      "copybook_id": "可选的优先碑帖。",
       "paper": {
-        "format": "zhongtang, tiaofu, doufang, couplet, fan, or custom.",
-        "width_cm": "Paper width in centimeters.",
-        "height_cm": "Paper height in centimeters."
+        "format": "zhongtang、tiaofu、doufang、couplet、fan 或 custom。",
+        "width_cm": "纸张宽度，单位厘米。",
+        "height_cm": "纸张高度，单位厘米。"
       },
-      "direction": "vertical_rtl or horizontal_ltr.",
-      "margin_cm": "Optional margin override.",
+      "direction": "vertical_rtl 或 horizontal_ltr。",
+      "margin_cm": "可选边距覆盖值。",
       "signature": {
-        "text": "Optional inscription text."
+        "text": "可选落款文本。"
       },
-      "seal_count": "Optional expected seal count."
+      "seal_count": "可选预期印章数量。"
     }
   },
   "layoutResult": {
     "fields": {
-      "layout_id": "Preview layout identifier.",
-      "normalized_text": "Text after removing punctuation and whitespace for traditional layout.",
-      "character_count": "Number of positioned characters.",
-      "style": "Resolved target style.",
-      "copybook_id": "Resolved preferred copybook, when provided.",
-      "paper": "Resolved paper spec.",
-      "direction": "Resolved writing direction.",
-      "margin_cm": "Resolved margin in centimeters.",
-      "columns": "Calculated column count.",
-      "rows": "Calculated row count.",
-      "glyph_size_cm": "Recommended glyph size in centimeters.",
-      "slots": "Ordered character positions.",
-      "signature_slots": "Suggested inscription positions.",
-      "seal_slots": "Suggested seal positions."
+      "layout_id": "预览章法标识。",
+      "normalized_text": "为传统章法移除标点和空白后的文本。",
+      "character_count": "已定位字符数量。",
+      "style": "解析后的目标书体。",
+      "copybook_id": "解析后的优先碑帖，存在时返回。",
+      "paper": "解析后的纸张规格。",
+      "direction": "解析后的书写方向。",
+      "margin_cm": "解析后的边距，单位厘米。",
+      "columns": "计算得到的列数。",
+      "rows": "计算得到的行数。",
+      "glyph_size_cm": "推荐字径，单位厘米。",
+      "slots": "有序字符位置。",
+      "signature_slots": "建议落款位置。",
+      "seal_slots": "建议印章位置。"
     }
   }
 }

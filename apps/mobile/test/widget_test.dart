@@ -1,0 +1,170 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:nebula_calligraphy_app/src/app.dart';
+import 'package:nebula_calligraphy_app/src/app_controller.dart';
+
+import 'app_controller_test.dart';
+
+void main() {
+  testWidgets('renders unauthenticated calligraphy login screen', (
+    WidgetTester tester,
+  ) async {
+    final controller = CalligraphyController(
+      gateway: FakeCalligraphyGateway(),
+      apiBaseUrl: 'http://calligraphy.test',
+    );
+
+    await tester.pumpWidget(CalligraphyApp(controller: controller));
+
+    expect(find.text('星云书法'), findsOneWidget);
+    expect(find.text('登录'), findsOneWidget);
+    expect(find.text('注册'), findsOneWidget);
+  });
+
+  testWidgets('renders daily learning workspace after login', (
+    WidgetTester tester,
+  ) async {
+    final controller = CalligraphyController(
+      gateway: FakeCalligraphyGateway(),
+      apiBaseUrl: 'http://calligraphy.test',
+    );
+    await controller.login(username: 'learner', password: 'password123');
+
+    await tester.pumpWidget(CalligraphyApp(controller: controller));
+    await tester.pump();
+
+    expect(find.text('今日'), findsWidgets);
+    expect(find.text('查字'), findsWidgets);
+    expect(find.text('创作'), findsWidgets);
+  });
+
+  testWidgets('loads a default practice reference after login', (
+    WidgetTester tester,
+  ) async {
+    final controller = CalligraphyController(
+      gateway: FakeCalligraphyGateway(),
+      apiBaseUrl: 'http://calligraphy.test',
+    );
+
+    await controller.login(username: 'learner', password: 'password123');
+    await tester.pumpWidget(CalligraphyApp(controller: controller));
+    await tester.pump();
+
+    expect(find.text('临摹参考'), findsOneWidget);
+    expect(find.text('临摹参考字'), findsOneWidget);
+  });
+
+  testWidgets('daily page exposes beginner-friendly primary actions', (
+    WidgetTester tester,
+  ) async {
+    final controller = CalligraphyController(
+      gateway: FakeCalligraphyGateway(),
+      apiBaseUrl: 'http://calligraphy.test',
+    );
+    await controller.login(username: 'learner', password: 'password123');
+
+    await tester.pumpWidget(CalligraphyApp(controller: controller));
+    await tester.pump();
+
+    expect(find.text('选今日字'), findsOneWidget);
+    expect(find.text('看临摹参考'), findsOneWidget);
+    expect(find.text('我已临摹'), findsWidgets);
+    expect(find.text('换一个字'), findsOneWidget);
+    expect(find.text('查名家写法'), findsOneWidget);
+    expect(find.text('生成作品布局'), findsOneWidget);
+  });
+
+  testWidgets('recording practice gives feedback and next step', (
+    WidgetTester tester,
+  ) async {
+    final controller = CalligraphyController(
+      gateway: FakeCalligraphyGateway(),
+      apiBaseUrl: 'http://calligraphy.test',
+    );
+    await controller.login(username: 'learner', password: 'password123');
+
+    await tester.pumpWidget(CalligraphyApp(controller: controller));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '我已临摹'));
+    await tester.pump();
+
+    expect(find.text('已记录 ✓'), findsOneWidget);
+    expect(find.text('继续练“水”'), findsOneWidget);
+    expect(find.text('今日已练'), findsOneWidget);
+    expect(find.text('1'), findsWidgets);
+  });
+
+  testWidgets('shows a copybook reference glyph for practice', (
+    WidgetTester tester,
+  ) async {
+    final controller = CalligraphyController(
+      gateway: FakeCalligraphyGateway(),
+      apiBaseUrl: 'http://calligraphy.test',
+    );
+    await controller.login(username: 'learner', password: 'password123');
+    await controller.searchGlyphs('永');
+
+    await tester.pumpWidget(CalligraphyApp(controller: controller));
+    await tester.pump();
+
+    expect(find.text('临摹参考字'), findsOneWidget);
+    expect(find.text('米字格参考'), findsOneWidget);
+    expect(find.text('出自《九成宫》'), findsOneWidget);
+    expect(find.text('jiuchenggong'), findsNothing);
+    expect(find.text('米字格临摹'), findsOneWidget);
+    expect(find.text('九宫格结构'), findsOneWidget);
+    expect(find.text('双钩练习'), findsOneWidget);
+  });
+
+  testWidgets('daily workspace emphasizes calligraphy learning pillars', (
+    WidgetTester tester,
+  ) async {
+    final controller = CalligraphyController(
+      gateway: FakeCalligraphyGateway(),
+      apiBaseUrl: 'http://calligraphy.test',
+    );
+    await controller.login(username: 'learner', password: 'password123');
+    await controller.searchGlyphs('永');
+
+    await tester.pumpWidget(CalligraphyApp(controller: controller));
+    await tester.pump();
+
+    expect(find.text('临摹参考'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('基本笔画'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('基本笔画'), findsOneWidget);
+    expect(find.text('单字结构'), findsOneWidget);
+    expect(find.text('多字章法'), findsOneWidget);
+    expect(find.text('点'), findsOneWidget);
+    expect(find.text('横折钩'), findsOneWidget);
+    expect(find.text('横撇'), findsOneWidget);
+    expect(find.text('竖'), findsNothing);
+    expect(find.text('中宫'), findsOneWidget);
+    expect(find.text('结构辅助线'), findsOneWidget);
+    expect(find.text('章法缩略图'), findsOneWidget);
+    expect(find.text('查名家写法'), findsOneWidget);
+    expect(find.text('生成作品布局'), findsOneWidget);
+  });
+
+  testWidgets('creation page starts with a paper-shaped empty preview', (
+    WidgetTester tester,
+  ) async {
+    final controller = CalligraphyController(
+      gateway: FakeCalligraphyGateway(),
+      apiBaseUrl: 'http://calligraphy.test',
+    );
+    await controller.login(username: 'learner', password: 'password123');
+
+    await tester.pumpWidget(CalligraphyApp(controller: controller));
+    await tester.pump();
+    await tester.tap(find.text('创作'));
+    await tester.pump();
+
+    expect(find.text('创作'), findsWidgets);
+    expect(find.text('生成作品布局'), findsOneWidget);
+    expect(find.text('输入内容后点击生成作品布局'), findsOneWidget);
+  });
+}

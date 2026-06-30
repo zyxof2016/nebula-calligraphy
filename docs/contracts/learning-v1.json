@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "contract": "calligraphy.learning.v1",
-  "description": "Daily learning profile, favorite glyph, and practice record contract for Nebula Calligraphy.",
+  "description": "Nebula Calligraphy 的每日学习档案、收藏字和练习记录契约。",
   "favoriteGlyph": {
     "required": [
       "owner_user_id",
@@ -11,12 +11,12 @@
       "created_at"
     ],
     "fields": {
-      "owner_user_id": "Nebula Identity user id. MVP accepts explicit path value until Identity middleware is wired.",
-      "glyph_id": "Published glyph identifier.",
-      "character": "Unicode character.",
-      "style": "Calligraphy style such as ou or yan.",
-      "copybook_id": "Source copybook identifier.",
-      "created_at": "Favorite creation timestamp."
+      "owner_user_id": "Nebula Identity 用户 ID。MVP 阶段在 Identity 中间件接入前接受路径显式传值。",
+      "glyph_id": "已发布字形标识。",
+      "character": "Unicode 字符。",
+      "style": "书体，例如 ou 或 yan。",
+      "copybook_id": "来源碑帖标识。",
+      "created_at": "收藏创建时间戳。"
     }
   },
   "practiceRecord": {
@@ -31,30 +31,30 @@
       "created_at"
     ],
     "fields": {
-      "practice_id": "Stable practice action identifier.",
-      "owner_user_id": "Nebula Identity user id.",
-      "glyph_id": "Published glyph identifier.",
-      "character": "Unicode character.",
-      "style": "Calligraphy style.",
-      "template_type": "copy or outline.",
-      "grid_type": "mi or jiugong.",
-      "created_at": "Practice timestamp."
+      "practice_id": "稳定的练习动作标识。",
+      "owner_user_id": "Nebula Identity 用户 ID。",
+      "glyph_id": "已发布字形标识。",
+      "character": "Unicode 字符。",
+      "style": "书体。",
+      "template_type": "copy 或 outline。",
+      "grid_type": "mi 或 jiugong。",
+      "created_at": "练习时间戳。"
     }
   },
   "learningProfile": {
     "fields": {
-      "owner_user_id": "Learner id.",
-      "favorites": "Favorite glyph list sorted by newest first.",
-      "recent_practice": "Recent practice records sorted by newest first.",
-      "practice_count": "Total practice record count retained by the MVP store.",
-      "favorite_count": "Current favorite glyph count.",
-      "last_practiced_at": "Most recent practice timestamp when present."
+      "owner_user_id": "学习者 ID。",
+      "favorites": "收藏字列表，按最新优先排序。",
+      "recent_practice": "近期练习记录，按最新优先排序。",
+      "practice_count": "MVP 存储保留的练习记录总数。",
+      "favorite_count": "当前收藏字数量。",
+      "last_practiced_at": "存在练习记录时的最近练习时间戳。"
     }
   },
   "endpoints": {
-    "GET /api/v1/calligraphy/users/{owner_user_id}/learning": "Read the daily learning profile.",
-    "POST /api/v1/calligraphy/users/{owner_user_id}/favorites": "Create or refresh a favorite glyph by glyph_id.",
-    "DELETE /api/v1/calligraphy/users/{owner_user_id}/favorites/{glyph_id}": "Remove one favorite glyph.",
-    "POST /api/v1/calligraphy/users/{owner_user_id}/practice": "Record one practice action for a glyph and practice template."
+    "GET /api/v1/calligraphy/users/{owner_user_id}/learning": "读取每日学习档案。",
+    "POST /api/v1/calligraphy/users/{owner_user_id}/favorites": "按 glyph_id 创建或刷新收藏字。",
+    "DELETE /api/v1/calligraphy/users/{owner_user_id}/favorites/{glyph_id}": "移除一个收藏字。",
+    "POST /api/v1/calligraphy/users/{owner_user_id}/practice": "记录一次单字和练习模板的练习动作。"
   }
 }

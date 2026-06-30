@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "contract": "calligraphy.glyph.v1",
-  "description": "Glyph metadata and source copybook contract for Nebula Calligraphy.",
+  "description": "Nebula Calligraphy 的字形元数据和来源碑帖契约。",
   "glyph": {
     "required": [
       "glyph_id",
@@ -13,47 +13,47 @@
       "license_status"
     ],
     "fields": {
-      "glyph_id": "Stable glyph identifier.",
-      "character": "Unicode character.",
-      "pinyin": "Optional pinyin.",
-      "radical": "Optional radical.",
-      "stroke_count": "Optional stroke count.",
-      "style": "Calligraphy style such as ou, yan, liu, zhao.",
-      "calligrapher": "Calligrapher name.",
-      "copybook_id": "Source copybook identifier.",
-      "source_image": "Object storage key or URL for the source page image.",
+      "glyph_id": "稳定的字形标识。",
+      "character": "Unicode 字符。",
+      "pinyin": "可选拼音。",
+      "radical": "可选部首。",
+      "stroke_count": "可选笔画数。",
+      "style": "书体，例如 ou、yan、liu、zhao。",
+      "calligrapher": "书家名称。",
+      "copybook_id": "来源碑帖标识。",
+      "source_image": "来源页图片的对象存储 key 或 URL。",
       "crop_box": {
-        "x": "Left coordinate in source image pixels.",
-        "y": "Top coordinate in source image pixels.",
-        "width": "Crop width in pixels.",
-        "height": "Crop height in pixels."
+        "x": "来源图片中的左侧像素坐标。",
+        "y": "来源图片中的顶部像素坐标。",
+        "width": "裁切宽度，单位像素。",
+        "height": "裁切高度，单位像素。"
       },
-      "license_status": "public_domain, licensed, restricted, or pending_review",
-      "review_status": "draft, expert_reviewed, published, or rejected"
+      "license_status": "public_domain、licensed、restricted 或 pending_review",
+      "review_status": "draft、expert_reviewed、published 或 rejected"
     }
   },
   "glyphDetail": {
     "fields": {
-      "glyph": "Published glyph metadata.",
-      "structure_notes": "Short learner-facing structure observations.",
-      "brushwork_notes": "Short learner-facing brushwork observations.",
-      "practice_templates": "Available practice template descriptors."
+      "glyph": "已发布字形元数据。",
+      "structure_notes": "面向学习者的简短结构观察。",
+      "brushwork_notes": "面向学习者的简短笔法观察。",
+      "practice_templates": "可用练习模板描述。"
     }
   },
   "glyphPresetGroup": {
     "fields": {
-      "group_id": "Stable preset group identifier.",
-      "title": "Display title.",
-      "description": "Learner-facing group description.",
-      "glyphs": "Published common glyphs included in the group."
+      "group_id": "稳定的预置分组标识。",
+      "title": "展示标题。",
+      "description": "面向学习者的分组说明。",
+      "glyphs": "分组内包含的已发布常用字形。"
     }
   },
   "practiceTemplate": {
     "fields": {
-      "template_type": "copy or outline.",
-      "grid_type": "mi or jiugong.",
-      "title": "Display title.",
-      "description": "Learner-facing usage note."
+      "template_type": "copy 或 outline。",
+      "grid_type": "mi 或 jiugong。",
+      "title": "展示标题。",
+      "description": "面向学习者的使用说明。"
     }
   }
 }

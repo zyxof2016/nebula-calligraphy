@@ -53,7 +53,7 @@ func TestGlyphCatalogSearchReturnsEmptyForRestrictedOnly(t *testing.T) {
 func TestGlyphCatalogContainsEnoughCommonLearningGlyphs(t *testing.T) {
 	catalog := NewInMemoryGlyphCatalog()
 
-	for _, style := range []string{"ou", "yan"} {
+	for _, style := range []string{"ou", "yan", "liu", "zhao", "slender_gold"} {
 		groups := catalog.ListPresetGroups(style)
 		unique := map[string]bool{}
 		for _, group := range groups {

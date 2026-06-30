@@ -46,6 +46,9 @@ func NewInMemoryGlyphCatalog() *InMemoryGlyphCatalog {
 	}{
 		{style: "ou", copybookID: "common-practice-ou", calligrapher: "欧阳询"},
 		{style: "yan", copybookID: "common-practice-yan", calligrapher: "颜真卿"},
+		{style: "liu", copybookID: "common-practice-liu", calligrapher: "柳公权"},
+		{style: "zhao", copybookID: "common-practice-zhao", calligrapher: "赵孟頫"},
+		{style: "slender_gold", copybookID: "common-practice-slender-gold", calligrapher: "宋徽宗"},
 	} {
 		for _, group := range groups {
 			for _, character := range splitUniqueCharacters(group.characters) {

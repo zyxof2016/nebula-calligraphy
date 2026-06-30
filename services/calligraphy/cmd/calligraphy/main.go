@@ -82,6 +82,7 @@ type appConfig struct {
 	ObjectStorageSecretKey string
 	AuditSink              string
 	AuditToken             string
+	AllowedOrigins         string
 }
 
 type runtimeMetrics struct {
@@ -120,6 +121,7 @@ func loadConfig() appConfig {
 		ObjectStorageSecretKey: os.Getenv("CALLIGRAPHY_OBJECT_STORAGE_SECRET_KEY"),
 		AuditSink:              os.Getenv("CALLIGRAPHY_AUDIT_SINK"),
 		AuditToken:             os.Getenv("CALLIGRAPHY_AUDIT_TOKEN"),
+		AllowedOrigins:         os.Getenv("CALLIGRAPHY_ALLOWED_ORIGINS"),
 	}
 }
 
@@ -129,7 +131,7 @@ func newRouter(cfg appConfig) (http.Handler, error) {
 	}
 	router := chi.NewRouter()
 	metrics := &runtimeMetrics{startedAt: time.Now()}
-	router.Use(chimw.RequestID, chimw.RealIP, chimw.Recoverer, securityHeaders(cfg), metricsMiddleware(metrics))
+	router.Use(chimw.RequestID, chimw.RealIP, chimw.Recoverer, securityHeaders(cfg), corsMiddleware(cfg), metricsMiddleware(metrics))
 	router.Get("/ready", func(w http.ResponseWriter, r *http.Request) {
 		writeReadiness(w, cfg)
 	})
@@ -346,6 +348,44 @@ func cspConnectSources(cfg appConfig) []string {
 		sources = append(sources, origin)
 	}
 	return sources
+}
+
+func corsMiddleware(cfg appConfig) func(http.Handler) http.Handler {
+	allowed := allowedOrigins(cfg)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if origin != "" && allowed[origin] {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Add("Vary", "Origin")
+				w.Header().Set("Access-Control-Allow-Credentials", "false")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+				w.Header().Set("Access-Control-Max-Age", "600")
+			}
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func allowedOrigins(cfg appConfig) map[string]bool {
+	origins := map[string]bool{}
+	if cfg.RuntimeProfile == "" || cfg.RuntimeProfile == "trial" {
+		origins["http://localhost:8088"] = true
+		origins["http://127.0.0.1:8088"] = true
+	}
+	for _, origin := range strings.Split(cfg.AllowedOrigins, ",") {
+		origin = strings.TrimSpace(origin)
+		if origin == "" {
+			continue
+		}
+		origins[origin] = true
+	}
+	return origins
 }
 
 func urlOrigin(rawURL string) string {

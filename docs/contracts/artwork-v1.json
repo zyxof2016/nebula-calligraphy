@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "contract": "calligraphy.artwork.v1",
-  "description": "User artwork draft, export, and audit baseline.",
+  "description": "用户作品草稿、导出记录和审计基线契约。",
   "artworkDraft": {
     "required": [
       "artwork_id",
@@ -11,14 +11,14 @@
       "created_at"
     ],
     "fields": {
-      "artwork_id": "Stable draft identifier.",
-      "owner_user_id": "Nebula Identity user id.",
-      "text": "Original user text.",
-      "layout": "Embedded calligraphy.layout.v1 result.",
-      "glyph_overrides": "User-selected replacements for specific slots.",
-      "exports": "PNG/PDF export records.",
-      "created_at": "Creation timestamp.",
-      "updated_at": "Last update timestamp."
+      "artwork_id": "稳定的草稿标识。",
+      "owner_user_id": "Nebula Identity 用户 ID。",
+      "text": "用户输入的原始正文。",
+      "layout": "内嵌的 calligraphy.layout.v1 章法结果。",
+      "glyph_overrides": "用户针对特定槽位选择的替换字形。",
+      "exports": "PNG/PDF 导出记录。",
+      "created_at": "创建时间戳。",
+      "updated_at": "最后更新时间戳。"
     }
   },
   "createArtworkDraftRequest": {
@@ -27,23 +27,23 @@
       "layout"
     ],
     "fields": {
-      "owner_user_id": "Nebula Identity user id. MVP accepts explicit value until Identity middleware is wired.",
-      "layout": "calligraphy.layout.v1 request used to generate the saved draft.",
-      "glyph_overrides": "Optional slot-to-glyph replacement map."
+      "owner_user_id": "Nebula Identity 用户 ID。MVP 阶段在 Identity 中间件接入前接受显式传值。",
+      "layout": "用于生成并保存草稿的 calligraphy.layout.v1 请求。",
+      "glyph_overrides": "可选的槽位到字形替换映射。"
     }
   },
   "exportRecord": {
     "fields": {
-      "export_id": "Export identifier.",
-      "artwork_id": "Artwork draft identifier.",
-      "format": "svg, png, or pdf. MVP supports svg.",
-      "template_type": "tracing, outline, reference, or share.",
-      "content_type": "Rendered artifact content type.",
-      "storage_key": "Object storage key.",
-      "sha256": "Export artifact checksum.",
-      "byte_size": "Artifact byte size.",
-      "inline_content": "MVP-only inline artifact content. Production exports should use storage_key.",
-      "created_at": "Export timestamp."
+      "export_id": "导出记录标识。",
+      "artwork_id": "作品草稿标识。",
+      "format": "svg、png 或 pdf。MVP 支持 svg。",
+      "template_type": "tracing、outline、reference 或 share。",
+      "content_type": "渲染产物的内容类型。",
+      "storage_key": "对象存储 key。",
+      "sha256": "导出产物校验和。",
+      "byte_size": "产物字节数。",
+      "inline_content": "仅 MVP 使用的内联产物内容。生产导出应使用 storage_key。",
+      "created_at": "导出时间戳。"
     }
   }
 }

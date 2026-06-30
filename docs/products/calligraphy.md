@@ -1,61 +1,61 @@
-# Nebula Calligraphy Product Spec
+# Nebula Calligraphy 产品说明
 
-## Positioning
+## 产品定位
 
-Nebula Calligraphy is a C-side AI calligraphy learning and copybook-based artwork composition app. It gives learners a portable calligraphy tutor for character lookup, style comparison, composition planning, and exportable practice templates.
+Nebula Calligraphy 是面向 C 端的 AI 书法学习与集字创作应用。它为学习者提供一个随身书法导师，覆盖单字查询、书体对比、章法规划和可导出的临摹练习模板。
 
-## MVP Scope
+## MVP 范围
 
-| Module | Included | Deferred |
-|--------|----------|----------|
-| Character dictionary | Pinyin/radical/stroke search, glyph comparison, source copybook, basic writing notes | Photo search, handwriting search, voice explanation |
-| Copybook library | `Jiuchenggong` and `Duobaota`, 1000 high-frequency glyphs | Large-scale copybook expansion |
-| Composition | Text input, style/copybook choice, paper format, automatic layout, glyph replacement | Radical synthesis, cross-calligrapher automatic mixing |
-| Export | PNG/PDF, tracing template, artwork reference | AR tracing and video cards |
-| User assets | Favorites, daily practice records, learning profile, artwork drafts, recent history | Community and classroom workflows |
+| 模块 | 已纳入 | 暂缓 |
+|------|--------|------|
+| 智能书法字典 | 拼音/部首/笔画检索、字形对比、来源碑帖、基础书写说明 | 拍照检索、手写检索、语音讲解 |
+| 碑帖字库 | `Jiuchenggong`、`Duobaota` 和高频字样本 | 大规模碑帖扩展 |
+| 集字创作 | 文本输入、书体/碑帖选择、幅式选择、自动章法排版、单字替换 | 偏旁合成、跨书家自动混排 |
+| 导出 | PNG/PDF、临摹模板、作品参考图 | AR 临摹和视频卡片 |
+| 用户资产 | 收藏、每日练习记录、学习档案、作品草稿、近期历史 | 社区和课堂工作流 |
 
-## Current Runtime Slice
+## 当前运行单元
 
-The repository now includes `services/calligraphy`, a Go MVP API service used to validate the C-side loop before mobile and admin UI work begins.
+仓库已包含 `services/calligraphy`，这是一个 Go MVP API 服务，用于在移动端和管理后台开发前先验证 C 端核心闭环。
 
-| API | Status | Notes |
-|-----|--------|-------|
-| `GET /health` | Implemented | Container and process health probe |
-| `GET /ready` | Implemented | Production profile readiness and persistence configuration probe |
-| `GET /metrics` | Implemented | Prometheus text metrics for request count and process uptime |
-| `POST /api/v1/calligraphy/auth/register` | Implemented | Creates a local MVP learner account and returns a session token |
-| `POST /api/v1/calligraphy/auth/login` | Implemented | Verifies credentials and returns a session token |
-| `POST /api/v1/calligraphy/auth/logout` | Implemented | Revokes the current local session token |
-| `GET /api/v1/calligraphy/auth/me` | Implemented | Resolves the current learner from `Authorization: Bearer <token>` |
-| `GET /api/v1/calligraphy/glyphs/search` | Implemented | Searches only licensed and published seed glyphs |
-| `GET /api/v1/calligraphy/glyphs/presets` | Implemented | Returns 120+ preset common learning glyphs per style, grouped by practice purpose |
-| `GET /api/v1/calligraphy/glyphs/{id}` | Implemented | Returns glyph detail, structure notes, brushwork notes, and practice templates |
-| `POST /api/v1/calligraphy/layouts/preview` | Implemented | Traditional `vertical_rtl` layout preview with margin, signature, and seal slots |
-| `POST /api/v1/calligraphy/artworks/drafts` | Implemented | Saves an artwork draft from a layout request; memory by default, JSON file when configured |
-| `GET /api/v1/calligraphy/artworks/drafts` | Implemented | Lists drafts for the authenticated owner; mismatched owner ids are rejected |
-| `DELETE /api/v1/calligraphy/artworks/drafts/{id}` | Implemented | Deletes one trial draft |
-| `POST /api/v1/calligraphy/artworks/drafts/{id}/exports` | Implemented | Produces an SVG reference export with SHA256; inline by default, local artifact file when configured |
-| `GET /api/v1/calligraphy/users/{id}/learning` | Implemented | Returns favorite glyphs, recent practice records, and learning counters |
-| `POST /api/v1/calligraphy/users/{id}/favorites` | Implemented | Saves a published glyph as a learner favorite |
-| `DELETE /api/v1/calligraphy/users/{id}/favorites/{glyph_id}` | Implemented | Removes one learner favorite |
-| `POST /api/v1/calligraphy/users/{id}/practice` | Implemented | Records one glyph practice action with template and grid type |
-| `GET /artifacts/{storage_key}` | Implemented | Serves local SVG exports when `CALLIGRAPHY_EXPORT_DIR` is configured |
-| Static trial workbench | Implemented | Served from `web/app` through `CALLIGRAPHY_WEB_DIR`; supports local registration/login, preset common glyphs, glyph lookup/detail, practice template preview/download, favorites, practice records, learning profile, composition preview, save, list, load, delete, export history, and SVG export/download |
+| API | 状态 | 说明 |
+|-----|------|------|
+| `GET /health` | 已实现 | 容器和进程健康探针 |
+| `GET /ready` | 已实现 | 生产配置就绪探针，会校验持久化配置 |
+| `GET /metrics` | 已实现 | Prometheus 文本指标，包含请求数和进程运行时长 |
+| `POST /api/v1/calligraphy/auth/register` | 已实现 | 创建本地 MVP 学习者账号并返回会话令牌 |
+| `POST /api/v1/calligraphy/auth/login` | 已实现 | 校验用户名密码并返回会话令牌 |
+| `POST /api/v1/calligraphy/auth/logout` | 已实现 | 吊销当前本地会话令牌 |
+| `GET /api/v1/calligraphy/auth/me` | 已实现 | 通过 `Authorization: Bearer <token>` 解析当前学习者 |
+| `GET /api/v1/calligraphy/glyphs/search` | 已实现 | 只查询已授权且已发布的种子字形 |
+| `GET /api/v1/calligraphy/glyphs/presets` | 已实现 | 每种书体返回 120+ 个预置常用学习字，并按练习目的分组 |
+| `GET /api/v1/calligraphy/glyphs/{id}` | 已实现 | 返回字形详情、结构说明、笔法说明和练习模板 |
+| `POST /api/v1/calligraphy/layouts/preview` | 已实现 | 传统 `vertical_rtl` 章法预览，支持边距、落款和印章位 |
+| `POST /api/v1/calligraphy/artworks/drafts` | 已实现 | 根据排版请求保存作品草稿；默认内存存储，配置后写入 JSON 文件 |
+| `GET /api/v1/calligraphy/artworks/drafts` | 已实现 | 查询认证用户的草稿列表；所属用户不匹配会被拒绝 |
+| `DELETE /api/v1/calligraphy/artworks/drafts/{id}` | 已实现 | 删除一个试用草稿 |
+| `POST /api/v1/calligraphy/artworks/drafts/{id}/exports` | 已实现 | 生成 SVG 参考导出并计算 SHA256；默认内联返回，配置后写入本地产物文件 |
+| `GET /api/v1/calligraphy/users/{id}/learning` | 已实现 | 返回收藏字、近期练习记录和学习统计 |
+| `POST /api/v1/calligraphy/users/{id}/favorites` | 已实现 | 将已发布字形收藏到学习者账号 |
+| `DELETE /api/v1/calligraphy/users/{id}/favorites/{glyph_id}` | 已实现 | 移除一个收藏字 |
+| `POST /api/v1/calligraphy/users/{id}/practice` | 已实现 | 记录一次单字练习动作，包含模板类型和格线类型 |
+| `GET /artifacts/{storage_key}` | 已实现 | 配置 `CALLIGRAPHY_EXPORT_DIR` 后提供本地 SVG 导出下载 |
+| 静态试用工作台 | 已实现 | 通过 `CALLIGRAPHY_WEB_DIR` 托管 `web/app`；支持本地注册/登录、常用字、查字/详情、练习模板预览/下载、收藏、练习记录、学习档案、章法预览、保存、列表、载入、删除、导出历史和 SVG 下载 |
 
-This service can persist local users, drafts, learning records, audit logs, and SVG exports to local files for controlled production trials. User-owned draft, favorite, practice, and learning-profile endpoints require a Bearer token and reject mismatched owner ids; repeated failed logins are temporarily locked. Managed foundation mode validates PostgreSQL, Identity, object storage, and audit sink configuration before startup, uses PostgreSQL stores for user/session and learner assets, verifies Nebula Identity-compatible JWKS/RS256 or HS256 Bearer tokens, exposes browser-safe runtime auth settings, prefers OIDC Authorization Code + PKCE for managed browser login, keeps Nebula Identity direct login as a compatibility fallback, and writes exports through an S3-compatible object store. Large-scale commercial production still needs licensed copybook ingestion and operational runbooks for the selected cloud services.
+该服务可将本地用户、草稿、学习记录、审计日志和 SVG 导出保存到本地文件，用于受控生产试用。用户草稿、收藏、练习和学习档案接口都要求 Bearer 令牌，并拒绝 所属用户不匹配的请求；连续登录失败会触发临时锁定。托管底座模式会在启动前校验 PostgreSQL、Identity、对象存储和审计接收端 配置，使用 PostgreSQL 保存用户/会话和学习资产，校验 Nebula Identity 兼容的 JWKS/RS256 或 HS256 Bearer 令牌，向浏览器暴露安全的运行时认证配置，托管 Web 登录优先使用 OIDC Authorization Code + PKCE，Nebula Identity 直连登录保留为兼容回退，并通过 S3 兼容对象存储写入导出产物。面向大规模商业生产仍需要授权碑帖入库，以及选定云服务的运维运行手册。
 
-## Foundation Integration
+## 底座集成
 
-| Foundation capability | Usage |
-|----------------------|-------|
-| Identity | User account, membership, personal workspace |
-| Object storage | Copybook images, glyph crops, exports, user artworks |
-| AI gateway | OCR, similarity, critique, glyph generation, all behind feature flags |
-| Audit | Export, AI generation, admin publication, licensing-sensitive operations |
-| Open platform | Future glyph/layout/export APIs |
+| 底座能力 | 用途 |
+|----------|------|
+| Identity | 用户账号、会员关系、个人工作空间 |
+| 对象存储 | 碑帖图片、单字裁切、导出产物、用户作品 |
+| AI 网关 | OCR、相似度、点评、字形生成，全部通过 功能开关 控制 |
+| 审计 | 导出、AI 生成、管理端发布、涉及版权授权的操作 |
+| 开放平台 | 后续字库、排版和导出 API |
 
-## Non-goals
+## 非目标
 
-- It is not part of Signage scheduling, Player playback, Device Hub OTA, or RemoteOps.
-- It does not ship community features in MVP.
-- It does not claim authoritative AI scoring before expert-validated evaluation is available.
+- 不属于 Signage 排程、Player 播放、Device Hub OTA 或 RemoteOps 流程。
+- MVP 不发布社区功能。
+- 在专家验证评价体系可用前，不宣称 AI 评分具有权威性。
