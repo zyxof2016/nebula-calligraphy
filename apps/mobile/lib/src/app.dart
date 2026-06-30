@@ -55,13 +55,29 @@ class _CalligraphyAppState extends State<CalligraphyApp> {
         ),
         scaffoldBackgroundColor: const Color(0xFFF7F4EB),
         useMaterial3: true,
+        fontFamily: 'NotoSerifCJK',
         fontFamilyFallback: const [
+          'Noto Serif CJK SC',
           'Noto Sans CJK SC',
           'PingFang SC',
           'KaiTi',
           'STKaiti',
           'serif',
         ],
+        cardTheme: const CardThemeData(
+          color: Color(0xFFFFFCF5),
+          elevation: 0,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+            side: BorderSide(color: Color(0x1F6B5B42)),
+          ),
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFFF7F4EB),
+          elevation: 0,
+          centerTitle: false,
+        ),
       ),
       home: AnimatedBuilder(
         animation: _controller,
@@ -274,36 +290,15 @@ class DailyPracticePage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const PracticePlanHeader(),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            FilledButton.icon(
-              onPressed: controller.changePracticeGlyph,
-              icon: const Icon(Icons.refresh),
-              label: const Text('换一个字'),
-            ),
-            OutlinedButton.icon(
-              onPressed: onOpenSearch,
-              icon: const Icon(Icons.manage_search),
-              label: const Text('查名家写法'),
-            ),
-            FilledButton.tonalIcon(
-              onPressed: onOpenCreation,
-              icon: const Icon(Icons.grid_view),
-              label: const Text('生成作品布局'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
         if (controller.selectedGlyph != null)
           PracticeReferencePanel(
             detail: controller.selectedGlyph!,
             onPractice: controller.recordSelectedGlyphPractice,
             feedback: controller.practiceFeedback,
             practiceCount: profile?.practiceCount ?? 0,
+            onChangeGlyph: controller.changePracticeGlyph,
+            onOpenSearch: onOpenSearch,
+            onOpenCreation: onOpenCreation,
           )
         else
           const EmptyPanel(
@@ -312,9 +307,14 @@ class DailyPracticePage extends StatelessWidget {
             message: '系统会展示结构要点、笔法要点和可用临摹模板。',
           ),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
+        Text(
+          '今天重点',
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 10),
+        LearningFocusGrid(
           children: [
             BasicStrokeCard(
               detail: controller.selectedGlyph,
@@ -347,7 +347,7 @@ class DailyPracticePage extends StatelessWidget {
             ),
             StatTile(
               label: '当前书体',
-              value: styleOptions[controller.selectedStyle] ?? '欧体',
+              value: styleDisplayName(controller.selectedStyle),
               icon: Icons.brush,
             ),
           ],
@@ -402,28 +402,213 @@ String strokeTipForCharacter(String character) {
   };
 }
 
-class PracticePlanHeader extends StatelessWidget {
-  const PracticePlanHeader({super.key});
+class PracticeReferencePanel extends StatefulWidget {
+  const PracticeReferencePanel({
+    super.key,
+    required this.detail,
+    required this.onPractice,
+    required this.practiceCount,
+    required this.onChangeGlyph,
+    required this.onOpenSearch,
+    required this.onOpenCreation,
+    this.feedback,
+  });
+
+  final GlyphDetail detail;
+  final VoidCallback onPractice;
+  final int practiceCount;
+  final VoidCallback onChangeGlyph;
+  final VoidCallback onOpenSearch;
+  final VoidCallback onOpenCreation;
+  final String? feedback;
+
+  @override
+  State<PracticeReferencePanel> createState() => _PracticeReferencePanelState();
+}
+
+class _PracticeReferencePanelState extends State<PracticeReferencePanel> {
+  String _mode = 'mi';
+
+  @override
+  Widget build(BuildContext context) {
+    final detail = widget.detail;
+    final styleName = styleDisplayName(detail.glyph.style);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 720;
+            final glyphSize = compact
+                ? (constraints.maxWidth - 12).clamp(260.0, 340.0)
+                : 360.0;
+            final meta = PracticeReferenceMeta(
+              detail: detail,
+              styleName: styleName,
+              practiceCount: widget.practiceCount,
+              feedback: widget.feedback,
+              mode: _mode,
+              onModeChanged: (value) => setState(() => _mode = value),
+              onPractice: widget.onPractice,
+              onChangeGlyph: widget.onChangeGlyph,
+              onOpenSearch: widget.onOpenSearch,
+              onOpenCreation: widget.onOpenCreation,
+            );
+            final glyph = ReferenceGlyphCard(
+              glyph: detail.glyph,
+              mode: _mode,
+              size: glyphSize,
+              fontSize: glyphSize * 0.72,
+            );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '今日临摹：${detail.glyph.character} · $styleName',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF1E2A22),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '看帖 → 拆笔画 → 练结构 → 创章法',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF59665D),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (compact)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Center(child: glyph),
+                      const SizedBox(height: 18),
+                      meta,
+                    ],
+                  )
+                else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      glyph,
+                      const SizedBox(width: 28),
+                      Expanded(child: meta),
+                    ],
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class PracticeReferenceMeta extends StatelessWidget {
+  const PracticeReferenceMeta({
+    super.key,
+    required this.detail,
+    required this.styleName,
+    required this.practiceCount,
+    required this.mode,
+    required this.onModeChanged,
+    required this.onPractice,
+    required this.onChangeGlyph,
+    required this.onOpenSearch,
+    required this.onOpenCreation,
+    this.feedback,
+  });
+
+  final GlyphDetail detail;
+  final String styleName;
+  final int practiceCount;
+  final String mode;
+  final ValueChanged<String> onModeChanged;
+  final VoidCallback onPractice;
+  final VoidCallback onChangeGlyph;
+  final VoidCallback onOpenSearch;
+  final VoidCallback onOpenCreation;
+  final String? feedback;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('今日任务', style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 6),
-        Text(
-          '看帖 → 拆笔画 → 练结构 → 创章法',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 10),
-        const Wrap(
+        Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
-            Chip(label: Text('选今日字')),
-            Chip(label: Text('看临摹参考')),
-            Chip(label: Text('我已临摹')),
+            InfoPill(
+              icon: Icons.brush,
+              label: '$styleName · ${detail.glyph.calligrapher}',
+            ),
+            InfoPill(
+              icon: Icons.menu_book,
+              label: copybookDisplayName(detail.glyph.copybookId),
+            ),
+            InfoPill(icon: Icons.edit_note, label: '今日已练 $practiceCount 次'),
+          ],
+        ),
+        const SizedBox(height: 14),
+        PracticeModeSelector(selected: mode, onChanged: onModeChanged),
+        const SizedBox(height: 14),
+        Text(
+          practiceModeTip(mode, detail.glyph.character),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: const Color(0xFF4D5A50),
+            height: 1.5,
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: onPractice,
+            icon: const Icon(Icons.draw),
+            label: const Text('我已临摹'),
+          ),
+        ),
+        if (feedback != null) ...[
+          const SizedBox(height: 10),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: const Color(0xFFE6F3EA),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Color(0xFF1F7A57)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('$feedback  继续练“水”')),
+                ],
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: onChangeGlyph,
+              icon: const Icon(Icons.refresh),
+              label: const Text('换一个字'),
+            ),
+            OutlinedButton.icon(
+              onPressed: onOpenSearch,
+              icon: const Icon(Icons.manage_search),
+              label: const Text('查名家写法'),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: onOpenCreation,
+              icon: const Icon(Icons.grid_view),
+              label: const Text('生成作品布局'),
+            ),
           ],
         ),
       ],
@@ -431,63 +616,27 @@ class PracticePlanHeader extends StatelessWidget {
   }
 }
 
-class PracticeReferencePanel extends StatelessWidget {
-  const PracticeReferencePanel({
-    super.key,
-    required this.detail,
-    required this.onPractice,
-    required this.practiceCount,
-    this.feedback,
-  });
+class InfoPill extends StatelessWidget {
+  const InfoPill({super.key, required this.icon, required this.label});
 
-  final GlyphDetail detail;
-  final VoidCallback onPractice;
-  final int practiceCount;
-  final String? feedback;
+  final IconData icon;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1ECE2),
+        borderRadius: BorderRadius.circular(999),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Wrap(
-          spacing: 20,
-          runSpacing: 16,
-          crossAxisAlignment: WrapCrossAlignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            ReferenceGlyphCard(glyph: detail.glyph, size: 188, fontSize: 112),
-            SizedBox(
-              width: 420,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('临摹参考', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${styleOptions[detail.glyph.style] ?? detail.glyph.style} · ${detail.glyph.calligrapher}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  Text(copybookDisplayName(detail.glyph.copybookId)),
-                  const SizedBox(height: 8),
-                  const Text('米字格参考'),
-                  const SizedBox(height: 12),
-                  const PracticeModeSelector(),
-                  const SizedBox(height: 12),
-                  FilledButton.icon(
-                    onPressed: onPractice,
-                    icon: const Icon(Icons.draw),
-                    label: const Text('我已临摹'),
-                  ),
-                  if (feedback != null) ...[
-                    const SizedBox(height: 10),
-                    Text(feedback!),
-                    const Text('今日已练'),
-                    Text('$practiceCount'),
-                    const Text('继续练“水”'),
-                  ],
-                ],
-              ),
-            ),
+            Icon(icon, size: 16, color: const Color(0xFF496052)),
+            const SizedBox(width: 6),
+            Text(label),
           ],
         ),
       ),
@@ -515,28 +664,39 @@ class PracticeGlyphChip extends StatelessWidget {
   }
 }
 
-class PracticeModeSelector extends StatefulWidget {
-  const PracticeModeSelector({super.key});
+class PracticeModeSelector extends StatelessWidget {
+  const PracticeModeSelector({
+    super.key,
+    required this.selected,
+    required this.onChanged,
+  });
 
-  @override
-  State<PracticeModeSelector> createState() => _PracticeModeSelectorState();
-}
-
-class _PracticeModeSelectorState extends State<PracticeModeSelector> {
-  String _mode = 'mi';
+  final String selected;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return SegmentedButton<String>(
-      segments: const [
-        ButtonSegment(value: 'mi', label: Text('米字格临摹')),
-        ButtonSegment(value: 'jiugong', label: Text('九宫格结构')),
-        ButtonSegment(value: 'outline', label: Text('双钩练习')),
-      ],
-      selected: {_mode},
-      onSelectionChanged: (value) => setState(() => _mode = value.single),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SegmentedButton<String>(
+        segments: const [
+          ButtonSegment(value: 'mi', label: Text('米字格临摹')),
+          ButtonSegment(value: 'jiugong', label: Text('九宫格结构')),
+          ButtonSegment(value: 'outline', label: Text('双钩练习')),
+        ],
+        selected: {selected},
+        onSelectionChanged: (value) => onChanged(value.single),
+      ),
     );
   }
+}
+
+String practiceModeTip(String mode, String character) {
+  return switch (mode) {
+    'jiugong' => '九宫格用于观察“$character”的中宫、重心和收放关系，先看结构再下笔。',
+    'outline' => '双钩练习用于控制外轮廓，适合慢写，确认笔画边界和空间比例。',
+    _ => '米字格用于校准起笔、行笔方向和主笔位置，是今天临摹的默认模式。',
+  };
 }
 
 class BasicStrokeCard extends StatelessWidget {
@@ -746,18 +906,19 @@ class LearningFocusCard extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.children,
-    required this.width,
+    this.width,
   });
 
   final String title;
   final IconData icon;
   final List<Widget> children;
-  final double width;
+  final double? width;
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 760;
     return SizedBox(
-      width: width,
+      width: compact ? double.infinity : (width ?? double.infinity),
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -777,6 +938,31 @@ class LearningFocusCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class LearningFocusGrid extends StatelessWidget {
+  const LearningFocusGrid({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 760) {
+          return Column(
+            children: [
+              for (final child in children) ...[
+                child,
+                if (child != children.last) const SizedBox(height: 12),
+              ],
+            ],
+          );
+        }
+        return Wrap(spacing: 12, runSpacing: 12, children: children);
+      },
     );
   }
 }
@@ -1023,7 +1209,7 @@ class StyleSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SegmentedButton<String>(
-      segments: styleOptions.entries
+      segments: selectableStyleOptions.entries
           .map(
             (entry) => ButtonSegment<String>(
               value: entry.key,
@@ -1134,7 +1320,7 @@ class GlyphCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.displaySmall,
                 ),
                 const SizedBox(height: 8),
-                Text(styleOptions[glyph.style] ?? glyph.style),
+                Text(styleDisplayName(glyph.style)),
                 Text(glyph.calligrapher),
               ],
             ),
@@ -1173,7 +1359,7 @@ class GlyphDetailPanel extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${styleOptions[detail.glyph.style] ?? detail.glyph.style} · ${detail.glyph.calligrapher}',
+                        '${styleDisplayName(detail.glyph.style)} · ${detail.glyph.calligrapher}',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       Text(copybookDisplayName(detail.glyph.copybookId)),
@@ -1204,11 +1390,13 @@ class ReferenceGlyphCard extends StatelessWidget {
   const ReferenceGlyphCard({
     super.key,
     required this.glyph,
+    this.mode = 'mi',
     this.size = 132,
     this.fontSize = 76,
   });
 
   final GlyphSummary glyph;
+  final String mode;
   final double size;
   final double fontSize;
 
@@ -1216,12 +1404,21 @@ class ReferenceGlyphCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       label: '临摹参考字 ${glyph.character}',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text('临摹参考字', style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8),
-          SizedBox(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFBF2),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x14000000),
+              offset: Offset(0, 8),
+              blurRadius: 18,
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: SizedBox(
             width: size,
             height: size,
             child: CustomPaint(
@@ -1229,10 +1426,11 @@ class ReferenceGlyphCard extends StatelessWidget {
                 character: glyph.character,
                 style: Theme.of(context).textTheme.displayLarge,
                 fontSize: fontSize,
+                mode: mode,
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1243,11 +1441,13 @@ class ReferenceGlyphPainter extends CustomPainter {
     required this.character,
     required this.style,
     required this.fontSize,
+    required this.mode,
   });
 
   final String character;
   final TextStyle? style;
   final double fontSize;
+  final String mode;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1262,18 +1462,31 @@ class ReferenceGlyphPainter extends CustomPainter {
 
     final rect = Offset.zero & size;
     canvas.drawRect(rect.deflate(0.6), borderPaint);
-    canvas.drawLine(
-      Offset(size.width / 2, 0),
-      Offset(size.width / 2, size.height),
-      guidePaint,
-    );
-    canvas.drawLine(
-      Offset(0, size.height / 2),
-      Offset(size.width, size.height / 2),
-      guidePaint,
-    );
-    canvas.drawLine(Offset.zero, Offset(size.width, size.height), guidePaint);
-    canvas.drawLine(Offset(size.width, 0), Offset(0, size.height), guidePaint);
+    if (mode == 'jiugong') {
+      for (var i = 1; i < 3; i += 1) {
+        final x = size.width * i / 3;
+        final y = size.height * i / 3;
+        canvas.drawLine(Offset(x, 0), Offset(x, size.height), guidePaint);
+        canvas.drawLine(Offset(0, y), Offset(size.width, y), guidePaint);
+      }
+    } else if (mode == 'mi') {
+      canvas.drawLine(
+        Offset(size.width / 2, 0),
+        Offset(size.width / 2, size.height),
+        guidePaint,
+      );
+      canvas.drawLine(
+        Offset(0, size.height / 2),
+        Offset(size.width, size.height / 2),
+        guidePaint,
+      );
+      canvas.drawLine(Offset.zero, Offset(size.width, size.height), guidePaint);
+      canvas.drawLine(
+        Offset(size.width, 0),
+        Offset(0, size.height),
+        guidePaint,
+      );
+    }
 
     final textPainter = TextPainter(
       text: TextSpan(
@@ -1281,9 +1494,11 @@ class ReferenceGlyphPainter extends CustomPainter {
         style: (style ?? const TextStyle()).copyWith(
           fontSize: fontSize,
           height: 1,
-          color: const Color(0xFF1E1B16),
-          fontFamily: 'KaiTi',
-          fontFamilyFallback: const ['STKaiti', 'serif'],
+          color: mode == 'outline'
+              ? const Color(0x551E1B16)
+              : const Color(0xFF1E1B16),
+          fontFamily: 'NotoSerifCJK',
+          fontFamilyFallback: const ['Noto Serif CJK SC', 'KaiTi', 'serif'],
           fontWeight: FontWeight.w500,
         ),
       ),
@@ -1303,7 +1518,8 @@ class ReferenceGlyphPainter extends CustomPainter {
   bool shouldRepaint(covariant ReferenceGlyphPainter oldDelegate) {
     return oldDelegate.character != character ||
         oldDelegate.style != style ||
-        oldDelegate.fontSize != fontSize;
+        oldDelegate.fontSize != fontSize ||
+        oldDelegate.mode != mode;
   }
 }
 

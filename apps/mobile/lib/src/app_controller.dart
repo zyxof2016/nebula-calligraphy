@@ -4,13 +4,27 @@ import 'calligraphy_api.dart';
 import 'models.dart';
 import 'session_store.dart';
 
-const styleOptions = <String, String>{
+const selectableStyleOptions = <String, String>{
   'ou': '欧体',
   'yan': '颜体',
   'liu': '柳体',
   'zhao': '赵体',
   'slender_gold': '瘦金体',
 };
+
+const styleOptions = <String, String>{
+  'ou': '欧体',
+  'regular_ou': '欧体',
+  'yan': '颜体',
+  'regular_yan': '颜体',
+  'liu': '柳体',
+  'regular_liu': '柳体',
+  'zhao': '赵体',
+  'regular_zhao': '赵体',
+  'slender_gold': '瘦金体',
+};
+
+String styleDisplayName(String style) => styleOptions[style] ?? style;
 
 const paperOptions = <PaperSpec>[
   PaperSpec(format: '四尺整张', widthCm: 69, heightCm: 138),

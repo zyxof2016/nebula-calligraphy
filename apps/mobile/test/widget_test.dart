@@ -50,8 +50,8 @@ void main() {
     await tester.pumpWidget(CalligraphyApp(controller: controller));
     await tester.pump();
 
-    expect(find.text('临摹参考'), findsOneWidget);
-    expect(find.text('临摹参考字'), findsOneWidget);
+    expect(find.text('今日临摹：永 · 欧体'), findsOneWidget);
+    expect(find.text('看帖 → 拆笔画 → 练结构 → 创章法'), findsOneWidget);
   });
 
   testWidgets('daily page exposes beginner-friendly primary actions', (
@@ -66,12 +66,12 @@ void main() {
     await tester.pumpWidget(CalligraphyApp(controller: controller));
     await tester.pump();
 
-    expect(find.text('选今日字'), findsOneWidget);
-    expect(find.text('看临摹参考'), findsOneWidget);
+    expect(find.text('今日临摹：永 · 欧体'), findsOneWidget);
+    expect(find.text('米字格临摹'), findsOneWidget);
     expect(find.text('我已临摹'), findsWidgets);
     expect(find.text('换一个字'), findsOneWidget);
-    expect(find.text('查名家写法'), findsOneWidget);
-    expect(find.text('生成作品布局'), findsOneWidget);
+    expect(find.text('查名家写法'), findsWidgets);
+    expect(find.text('生成作品布局'), findsWidgets);
   });
 
   testWidgets('recording practice gives feedback and next step', (
@@ -88,10 +88,9 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '我已临摹'));
     await tester.pump();
 
-    expect(find.text('已记录 ✓'), findsOneWidget);
-    expect(find.text('继续练“水”'), findsOneWidget);
-    expect(find.text('今日已练'), findsOneWidget);
-    expect(find.text('1'), findsWidgets);
+    expect(find.textContaining('已记录 ✓'), findsOneWidget);
+    expect(find.textContaining('继续练“水”'), findsOneWidget);
+    expect(find.text('今日已练 1 次'), findsOneWidget);
   });
 
   testWidgets('shows a copybook reference glyph for practice', (
@@ -107,10 +106,10 @@ void main() {
     await tester.pumpWidget(CalligraphyApp(controller: controller));
     await tester.pump();
 
-    expect(find.text('临摹参考字'), findsOneWidget);
-    expect(find.text('米字格参考'), findsOneWidget);
+    expect(find.text('今日临摹：永 · 欧体'), findsOneWidget);
     expect(find.text('出自《九成宫》'), findsOneWidget);
     expect(find.text('jiuchenggong'), findsNothing);
+    expect(find.text('regular_ou'), findsNothing);
     expect(find.text('米字格临摹'), findsOneWidget);
     expect(find.text('九宫格结构'), findsOneWidget);
     expect(find.text('双钩练习'), findsOneWidget);
@@ -129,7 +128,7 @@ void main() {
     await tester.pumpWidget(CalligraphyApp(controller: controller));
     await tester.pump();
 
-    expect(find.text('临摹参考'), findsOneWidget);
+    expect(find.text('今日临摹：永 · 欧体'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('基本笔画'),
       300,
@@ -145,8 +144,8 @@ void main() {
     expect(find.text('中宫'), findsOneWidget);
     expect(find.text('结构辅助线'), findsOneWidget);
     expect(find.text('章法缩略图'), findsOneWidget);
-    expect(find.text('查名家写法'), findsOneWidget);
-    expect(find.text('生成作品布局'), findsOneWidget);
+    expect(find.text('查名家写法'), findsWidgets);
+    expect(find.text('生成作品布局'), findsWidgets);
   });
 
   testWidgets('creation page starts with a paper-shaped empty preview', (
