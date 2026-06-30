@@ -57,6 +57,8 @@ void main() {
   testWidgets('daily page exposes beginner-friendly primary actions', (
     WidgetTester tester,
   ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller = CalligraphyController(
       gateway: FakeCalligraphyGateway(),
       apiBaseUrl: 'http://calligraphy.test',
@@ -66,12 +68,12 @@ void main() {
     await tester.pumpWidget(CalligraphyApp(controller: controller));
     await tester.pump();
 
-    expect(find.text('今日临摹：永 · 欧体'), findsOneWidget);
-    expect(find.text('米字格临摹'), findsOneWidget);
+    expect(find.text('永 · 欧体'), findsOneWidget);
+    expect(find.text('米字格'), findsOneWidget);
     expect(find.text('我已临摹'), findsWidgets);
-    expect(find.text('换一个字'), findsOneWidget);
-    expect(find.text('查名家写法'), findsWidgets);
-    expect(find.text('生成作品布局'), findsWidgets);
+    expect(find.text('换字'), findsOneWidget);
+    expect(find.text('查字'), findsWidgets);
+    expect(find.text('创作'), findsWidgets);
   });
 
   testWidgets('recording practice gives feedback and next step', (
@@ -110,14 +112,16 @@ void main() {
     expect(find.text('出自《九成宫》'), findsOneWidget);
     expect(find.text('jiuchenggong'), findsNothing);
     expect(find.text('regular_ou'), findsNothing);
-    expect(find.text('米字格临摹'), findsOneWidget);
-    expect(find.text('九宫格结构'), findsOneWidget);
-    expect(find.text('双钩练习'), findsOneWidget);
+    expect(find.text('米字格'), findsOneWidget);
+    expect(find.text('九宫格'), findsOneWidget);
+    expect(find.text('双钩'), findsOneWidget);
   });
 
   testWidgets('daily workspace emphasizes calligraphy learning pillars', (
     WidgetTester tester,
   ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller = CalligraphyController(
       gateway: FakeCalligraphyGateway(),
       apiBaseUrl: 'http://calligraphy.test',
@@ -128,12 +132,10 @@ void main() {
     await tester.pumpWidget(CalligraphyApp(controller: controller));
     await tester.pump();
 
-    expect(find.text('今日临摹：永 · 欧体'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('基本笔画'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
+    expect(find.text('永 · 欧体'), findsOneWidget);
+    expect(find.text('展开笔画、结构和章法'), findsOneWidget);
+    await tester.tap(find.text('展开笔画、结构和章法'));
+    await tester.pumpAndSettle();
     expect(find.text('基本笔画'), findsOneWidget);
     expect(find.text('单字结构'), findsOneWidget);
     expect(find.text('多字章法'), findsOneWidget);

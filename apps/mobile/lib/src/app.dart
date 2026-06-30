@@ -230,44 +230,87 @@ class _LearningWorkspaceState extends State<LearningWorkspace> {
       CreationPage(controller: widget.controller),
       DraftsPage(controller: widget.controller),
     ];
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('星云书法'),
-        actions: [
-          IconButton(
-            tooltip: '退出登录',
-            onPressed: widget.controller.logout,
-            icon: const Icon(Icons.logout),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final desktop = constraints.maxWidth >= 1024;
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('星云书法'),
+            actions: [
+              IconButton(
+                tooltip: '退出登录',
+                onPressed: widget.controller.logout,
+                icon: const Icon(Icons.logout),
+              ),
+            ],
           ),
-        ],
-      ),
-      body: pages[_index],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (value) => setState(() => _index = value),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.today_outlined),
-            selectedIcon: Icon(Icons.today),
-            label: '今日',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.search),
-            selectedIcon: Icon(Icons.manage_search),
-            label: '查字',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.auto_awesome_mosaic_outlined),
-            selectedIcon: Icon(Icons.auto_awesome_mosaic),
-            label: '创作',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.folder_copy_outlined),
-            selectedIcon: Icon(Icons.folder_copy),
-            label: '作品',
-          ),
-        ],
-      ),
+          body: desktop
+              ? Row(
+                  children: [
+                    NavigationRail(
+                      selectedIndex: _index,
+                      onDestinationSelected: (value) =>
+                          setState(() => _index = value),
+                      labelType: NavigationRailLabelType.all,
+                      destinations: const [
+                        NavigationRailDestination(
+                          icon: Icon(Icons.today_outlined),
+                          selectedIcon: Icon(Icons.today),
+                          label: Text('今日'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.search),
+                          selectedIcon: Icon(Icons.manage_search),
+                          label: Text('查字'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.auto_awesome_mosaic_outlined),
+                          selectedIcon: Icon(Icons.auto_awesome_mosaic),
+                          label: Text('创作'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.folder_copy_outlined),
+                          selectedIcon: Icon(Icons.folder_copy),
+                          label: Text('作品'),
+                        ),
+                      ],
+                    ),
+                    const VerticalDivider(width: 1),
+                    Expanded(child: pages[_index]),
+                  ],
+                )
+              : pages[_index],
+          bottomNavigationBar: desktop
+              ? null
+              : NavigationBar(
+                  selectedIndex: _index,
+                  onDestinationSelected: (value) =>
+                      setState(() => _index = value),
+                  destinations: const [
+                    NavigationDestination(
+                      icon: Icon(Icons.today_outlined),
+                      selectedIcon: Icon(Icons.today),
+                      label: '今日',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.search),
+                      selectedIcon: Icon(Icons.manage_search),
+                      label: '查字',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.auto_awesome_mosaic_outlined),
+                      selectedIcon: Icon(Icons.auto_awesome_mosaic),
+                      label: '创作',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.folder_copy_outlined),
+                      selectedIcon: Icon(Icons.folder_copy),
+                      label: '作品',
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 }
@@ -287,6 +330,43 @@ class DailyPracticePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final profile = controller.learningProfile;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 1024) {
+          return DesktopDailyPracticePage(
+            controller: controller,
+            profile: profile,
+            onOpenSearch: onOpenSearch,
+            onOpenCreation: onOpenCreation,
+          );
+        }
+        return MobileDailyPracticePage(
+          controller: controller,
+          profile: profile,
+          onOpenSearch: onOpenSearch,
+          onOpenCreation: onOpenCreation,
+        );
+      },
+    );
+  }
+}
+
+class MobileDailyPracticePage extends StatelessWidget {
+  const MobileDailyPracticePage({
+    super.key,
+    required this.controller,
+    required this.profile,
+    required this.onOpenSearch,
+    required this.onOpenCreation,
+  });
+
+  final CalligraphyController controller;
+  final LearningProfile? profile;
+  final VoidCallback onOpenSearch;
+  final VoidCallback onOpenCreation;
+
+  @override
+  Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -307,65 +387,285 @@ class DailyPracticePage extends StatelessWidget {
             message: '系统会展示结构要点、笔法要点和可用临摹模板。',
           ),
         const SizedBox(height: 12),
-        Text(
-          '今天重点',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+        Card(
+          child: ExpansionTile(
+            initiallyExpanded: false,
+            leading: const Icon(Icons.school_outlined),
+            title: const Text('展开笔画、结构和章法'),
+            subtitle: const Text('需要时再看，不打断临摹'),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              BasicStrokeCard(
+                detail: controller.selectedGlyph,
+                onSelectGlyph: controller.searchGlyphs,
+              ),
+              const SizedBox(height: 12),
+              StructureFocusCard(
+                detail: controller.selectedGlyph,
+                onOpenSearch: onOpenSearch,
+              ),
+              const SizedBox(height: 12),
+              CompositionFocusCard(
+                paper: controller.selectedPaper,
+                onOpenCreation: onOpenCreation,
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 10),
-        LearningFocusGrid(
-          children: [
-            BasicStrokeCard(
-              detail: controller.selectedGlyph,
-              onSelectGlyph: controller.searchGlyphs,
-            ),
-            StructureFocusCard(
-              detail: controller.selectedGlyph,
-              onOpenSearch: onOpenSearch,
-            ),
-            CompositionFocusCard(
-              paper: controller.selectedPaper,
-              onOpenCreation: onOpenCreation,
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            StatTile(
-              label: '今日已练',
-              value: '${profile?.practiceCount ?? 0}',
-              icon: Icons.edit_note,
-            ),
-            StatTile(
-              label: '收藏字',
-              value: '${profile?.favoriteCount ?? 0}',
-              icon: Icons.star_border,
-            ),
-            StatTile(
-              label: '当前书体',
-              value: styleDisplayName(controller.selectedStyle),
-              icon: Icons.brush,
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: commonGlyphs
-              .map(
-                (glyph) => PracticeGlyphChip(
-                  glyph: glyph,
-                  onPressed: () => controller.searchGlyphs(glyph),
-                ),
-              )
-              .toList(),
+        const SizedBox(height: 12),
+        Card(
+          child: ExpansionTile(
+            initiallyExpanded: false,
+            leading: const Icon(Icons.tune),
+            title: const Text('常用字和进度'),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              DailyStatsRow(
+                profile: profile,
+                selectedStyle: controller.selectedStyle,
+              ),
+              const SizedBox(height: 12),
+              CommonGlyphStrip(onSelectGlyph: controller.searchGlyphs),
+            ],
+          ),
         ),
       ],
+    );
+  }
+}
+
+class DesktopDailyPracticePage extends StatelessWidget {
+  const DesktopDailyPracticePage({
+    super.key,
+    required this.controller,
+    required this.profile,
+    required this.onOpenSearch,
+    required this.onOpenCreation,
+  });
+
+  final CalligraphyController controller;
+  final LearningProfile? profile;
+  final VoidCallback onOpenSearch;
+  final VoidCallback onOpenCreation;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+      children: [
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1240),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 260,
+                  child: DailyPracticeSidebar(
+                    profile: profile,
+                    selectedStyle: controller.selectedStyle,
+                    onSelectGlyph: controller.searchGlyphs,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: controller.selectedGlyph != null
+                      ? PracticeReferencePanel(
+                          detail: controller.selectedGlyph!,
+                          onPractice: controller.recordSelectedGlyphPractice,
+                          feedback: controller.practiceFeedback,
+                          practiceCount: profile?.practiceCount ?? 0,
+                          onChangeGlyph: controller.changePracticeGlyph,
+                          onOpenSearch: onOpenSearch,
+                          onOpenCreation: onOpenCreation,
+                        )
+                      : const EmptyPanel(
+                          icon: Icons.gesture,
+                          title: '选择一个常用字开始',
+                          message: '系统会展示结构要点、笔法要点和可用临摹模板。',
+                        ),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 320,
+                  child: DailyFocusColumn(
+                    detail: controller.selectedGlyph,
+                    paper: controller.selectedPaper,
+                    onSelectGlyph: controller.searchGlyphs,
+                    onOpenSearch: onOpenSearch,
+                    onOpenCreation: onOpenCreation,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class DailyPracticeSidebar extends StatelessWidget {
+  const DailyPracticeSidebar({
+    super.key,
+    required this.profile,
+    required this.selectedStyle,
+    required this.onSelectGlyph,
+  });
+
+  final LearningProfile? profile;
+  final String selectedStyle;
+  final ValueChanged<String> onSelectGlyph;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '今日',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                const Text('先写好一个字，再进入结构和章法。'),
+                const SizedBox(height: 14),
+                DailyStatsRow(profile: profile, selectedStyle: selectedStyle),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('常用字', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 10),
+                CommonGlyphStrip(onSelectGlyph: onSelectGlyph),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class DailyFocusColumn extends StatelessWidget {
+  const DailyFocusColumn({
+    super.key,
+    required this.detail,
+    required this.paper,
+    required this.onSelectGlyph,
+    required this.onOpenSearch,
+    required this.onOpenCreation,
+  });
+
+  final GlyphDetail? detail;
+  final PaperSpec paper;
+  final ValueChanged<String> onSelectGlyph;
+  final VoidCallback onOpenSearch;
+  final VoidCallback onOpenCreation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BasicStrokeCard(detail: detail, onSelectGlyph: onSelectGlyph),
+        const SizedBox(height: 12),
+        StructureFocusCard(detail: detail, onOpenSearch: onOpenSearch),
+        const SizedBox(height: 12),
+        CompositionFocusCard(paper: paper, onOpenCreation: onOpenCreation),
+      ],
+    );
+  }
+}
+
+class DailyStatsRow extends StatelessWidget {
+  const DailyStatsRow({
+    super.key,
+    required this.profile,
+    required this.selectedStyle,
+  });
+
+  final LearningProfile? profile;
+  final String selectedStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        CompactStat(label: '已练', value: '${profile?.practiceCount ?? 0}'),
+        CompactStat(label: '收藏', value: '${profile?.favoriteCount ?? 0}'),
+        CompactStat(label: '书体', value: styleDisplayName(selectedStyle)),
+      ],
+    );
+  }
+}
+
+class CompactStat extends StatelessWidget {
+  const CompactStat({super.key, required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1ECE2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.labelSmall),
+            Text(
+              value,
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class CommonGlyphStrip extends StatelessWidget {
+  const CommonGlyphStrip({super.key, required this.onSelectGlyph});
+
+  final ValueChanged<String> onSelectGlyph;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: commonGlyphs
+          .map(
+            (glyph) => ActionChip(
+              label: Text(glyph),
+              onPressed: () => onSelectGlyph(glyph),
+            ),
+          )
+          .toList(),
     );
   }
 }
@@ -440,14 +740,15 @@ class _PracticeReferencePanelState extends State<PracticeReferencePanel> {
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 720;
             final glyphSize = compact
-                ? (constraints.maxWidth - 12).clamp(260.0, 340.0)
-                : 360.0;
+                ? (constraints.maxWidth - 86).clamp(190.0, 260.0)
+                : constraints.maxWidth.clamp(320.0, 440.0) * 0.88;
             final meta = PracticeReferenceMeta(
               detail: detail,
               styleName: styleName,
               practiceCount: widget.practiceCount,
               feedback: widget.feedback,
               mode: _mode,
+              compact: compact,
               onModeChanged: (value) => setState(() => _mode = value),
               onPractice: widget.onPractice,
               onChangeGlyph: widget.onChangeGlyph,
@@ -464,20 +765,27 @@ class _PracticeReferencePanelState extends State<PracticeReferencePanel> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '今日临摹：${detail.glyph.character} · $styleName',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF1E2A22),
-                  ),
+                  compact
+                      ? '${detail.glyph.character} · $styleName'
+                      : '今日临摹：${detail.glyph.character} · $styleName',
+                  style:
+                      (compact
+                              ? Theme.of(context).textTheme.headlineMedium
+                              : Theme.of(context).textTheme.headlineSmall)
+                          ?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF1E2A22),
+                          ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  '看帖 → 拆笔画 → 练结构 → 创章法',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF59665D),
+                if (!compact)
+                  Text(
+                    '看帖 → 拆笔画 → 练结构 → 创章法',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF59665D),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
+                SizedBox(height: compact ? 10 : 16),
                 if (compact)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -512,6 +820,7 @@ class PracticeReferenceMeta extends StatelessWidget {
     required this.styleName,
     required this.practiceCount,
     required this.mode,
+    required this.compact,
     required this.onModeChanged,
     required this.onPractice,
     required this.onChangeGlyph,
@@ -524,6 +833,7 @@ class PracticeReferenceMeta extends StatelessWidget {
   final String styleName;
   final int practiceCount;
   final String mode;
+  final bool compact;
   final ValueChanged<String> onModeChanged;
   final VoidCallback onPractice;
   final VoidCallback onChangeGlyph;
@@ -542,7 +852,9 @@ class PracticeReferenceMeta extends StatelessWidget {
           children: [
             InfoPill(
               icon: Icons.brush,
-              label: '$styleName · ${detail.glyph.calligrapher}',
+              label: compact
+                  ? detail.glyph.calligrapher
+                  : '$styleName · ${detail.glyph.calligrapher}',
             ),
             InfoPill(
               icon: Icons.menu_book,
@@ -551,17 +863,23 @@ class PracticeReferenceMeta extends StatelessWidget {
             InfoPill(icon: Icons.edit_note, label: '今日已练 $practiceCount 次'),
           ],
         ),
-        const SizedBox(height: 14),
-        PracticeModeSelector(selected: mode, onChanged: onModeChanged),
-        const SizedBox(height: 14),
-        Text(
-          practiceModeTip(mode, detail.glyph.character),
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: const Color(0xFF4D5A50),
-            height: 1.5,
-          ),
+        SizedBox(height: compact ? 10 : 14),
+        PracticeModeSelector(
+          selected: mode,
+          onChanged: onModeChanged,
+          compact: compact,
         ),
-        const SizedBox(height: 16),
+        if (!compact) ...[
+          const SizedBox(height: 14),
+          Text(
+            practiceModeTip(mode, detail.glyph.character),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF4D5A50),
+              height: 1.5,
+            ),
+          ),
+        ],
+        SizedBox(height: compact ? 12 : 16),
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
@@ -589,28 +907,55 @@ class PracticeReferenceMeta extends StatelessWidget {
             ),
           ),
         ],
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            OutlinedButton.icon(
-              onPressed: onChangeGlyph,
-              icon: const Icon(Icons.refresh),
-              label: const Text('换一个字'),
-            ),
-            OutlinedButton.icon(
-              onPressed: onOpenSearch,
-              icon: const Icon(Icons.manage_search),
-              label: const Text('查名家写法'),
-            ),
-            FilledButton.tonalIcon(
-              onPressed: onOpenCreation,
-              icon: const Icon(Icons.grid_view),
-              label: const Text('生成作品布局'),
-            ),
-          ],
-        ),
+        SizedBox(height: compact ? 8 : 12),
+        if (compact)
+          Row(
+            children: [
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: onChangeGlyph,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('换字'),
+                ),
+              ),
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: onOpenSearch,
+                  icon: const Icon(Icons.manage_search),
+                  label: const Text('查字'),
+                ),
+              ),
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: onOpenCreation,
+                  icon: const Icon(Icons.grid_view),
+                  label: const Text('创作'),
+                ),
+              ),
+            ],
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: onChangeGlyph,
+                icon: const Icon(Icons.refresh),
+                label: const Text('换一个字'),
+              ),
+              OutlinedButton.icon(
+                onPressed: onOpenSearch,
+                icon: const Icon(Icons.manage_search),
+                label: const Text('查名家写法'),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: onOpenCreation,
+                icon: const Icon(Icons.grid_view),
+                label: const Text('生成作品布局'),
+              ),
+            ],
+          ),
       ],
     );
   }
@@ -669,10 +1014,12 @@ class PracticeModeSelector extends StatelessWidget {
     super.key,
     required this.selected,
     required this.onChanged,
+    this.compact = false,
   });
 
   final String selected;
   final ValueChanged<String> onChanged;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -680,9 +1027,9 @@ class PracticeModeSelector extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: SegmentedButton<String>(
         segments: const [
-          ButtonSegment(value: 'mi', label: Text('米字格临摹')),
-          ButtonSegment(value: 'jiugong', label: Text('九宫格结构')),
-          ButtonSegment(value: 'outline', label: Text('双钩练习')),
+          ButtonSegment(value: 'mi', label: Text('米字格')),
+          ButtonSegment(value: 'jiugong', label: Text('九宫格')),
+          ButtonSegment(value: 'outline', label: Text('双钩')),
         ],
         selected: {selected},
         onSelectionChanged: (value) => onChanged(value.single),
