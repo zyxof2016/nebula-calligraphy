@@ -9,7 +9,7 @@ Nebula Calligraphy 是面向 C 端的 AI 书法学习与集字创作应用。它
 | 模块 | 已纳入 | 暂缓 |
 |------|--------|------|
 | 智能书法字典 | 拼音/部首/笔画检索、字形对比、来源碑帖、基础书写说明 | 拍照检索、手写检索、语音讲解 |
-| 碑帖字库 | `Jiuchenggong`、`Duobaota` 和高频字样本 | 大规模碑帖扩展 |
+| 碑帖字库 | `Jiuchenggong`、`Duobaota` 和高频字样本；支持从可追溯 manifest 加载真实碑帖裁切字 | 大规模碑帖扩展、自动切字和专家工作台 |
 | 集字创作 | 文本输入、书体/碑帖选择、幅式选择、自动章法排版、落款和印章预览、单字替换 | 偏旁合成、跨书家自动混排 |
 | 导出 | PNG/PDF、临摹模板、作品参考图 | AR 临摹和视频卡片 |
 | 用户资产 | 收藏、每日练习记录、学习档案、作品草稿、近期历史 | 社区和课堂工作流 |
@@ -27,7 +27,7 @@ Nebula Calligraphy 是面向 C 端的 AI 书法学习与集字创作应用。它
 | `POST /api/v1/calligraphy/auth/login` | 已实现 | 校验用户名密码并返回会话令牌 |
 | `POST /api/v1/calligraphy/auth/logout` | 已实现 | 吊销当前本地会话令牌 |
 | `GET /api/v1/calligraphy/auth/me` | 已实现 | 通过 `Authorization: Bearer <token>` 解析当前学习者 |
-| `GET /api/v1/calligraphy/glyphs/search` | 已实现 | 只查询已授权且已发布的种子字形 |
+| `GET /api/v1/calligraphy/glyphs/search` | 已实现 | 只查询已授权且已发布的种子字形；配置 `CALLIGRAPHY_GLYPH_MANIFEST_FILE` 后优先返回 manifest 中已发布的真实裁切字 |
 | `GET /api/v1/calligraphy/glyphs/presets` | 已实现 | 每种书体返回 120+ 个预置常用学习字，并按练习目的分组 |
 | `GET /api/v1/calligraphy/glyphs/{id}` | 已实现 | 返回字形详情、结构说明、笔法说明和练习模板 |
 | `POST /api/v1/calligraphy/layouts/preview` | 已实现 | 传统 `vertical_rtl` 章法预览，支持边距、落款和印章位；斗方场景优先保持竖排作品感，例如 4 字 2x2、8 字 2 列 4 行 |
@@ -52,6 +52,17 @@ Nebula Calligraphy 是面向 C 端的 AI 书法学习与集字创作应用。它
 - Ma Shan Zheng：OFL 许可的书法展示字体，用于临摹参考字和章法预览，避免生产 Web 依赖设备系统楷体。
 
 Ma Shan Zheng 只是当前无授权碑帖裁切图时的视觉兜底。正式内容生产仍应以授权碑帖高清图、单字裁切、书体来源标注和专家审核为准，不能把通用展示字体当作真实欧体、颜体、柳体或赵体字库。
+
+## 碑帖范字流水线
+
+当前已落地 V1 范字库 manifest 流水线：
+
+- `assets/copybooks/jiuchenggong/manifest.sample.json`：九成宫 manifest 样例，坐标为格式示例，全部保持 `draft`，不会作为已发布字库返回。
+- `docs/contracts/glyph-manifest-v1.json`：机器可读契约，定义碑帖来源、授权、单字裁切框和审校状态。
+- `services/calligraphy/cmd/calligraphy-glyph-manifest`：导入前校验工具。
+- `CALLIGRAPHY_GLYPH_MANIFEST_FILE`：运行时加载 manifest 字库，优先于内置兜底字库。
+
+manifest 必须包含 `source_url`、`license_status`、`attribution`、`source_image` 和正数裁切框。只有 `review_status=published` 且非 `restricted` 的字会对外服务。AI 补字、部件合成字和人工重绘字后续必须单独标注，不能混入原碑裁切字。
 
 ## 底座集成
 

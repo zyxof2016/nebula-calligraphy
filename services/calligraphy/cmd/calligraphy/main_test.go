@@ -83,6 +83,55 @@ func TestNewRouterAddsSecurityHeaders(t *testing.T) {
 	}
 }
 
+func TestNewRouterLoadsConfiguredGlyphManifest(t *testing.T) {
+	manifestPath := writeRuntimeGlyphManifestFixture(t, `{
+	  "schema_version": "calligraphy.glyph_manifest.v1",
+	  "copybook": {
+	    "copybook_id": "jiuchenggong",
+	    "title": "九成宫醴泉铭",
+	    "style": "ou",
+	    "calligrapher": "欧阳询",
+	    "source_url": "https://commons.wikimedia.org/wiki/Category:%E4%B9%9D%E6%88%90%E5%AE%AE%E9%86%B4%E6%B3%89%E9%8A%98",
+	    "license_status": "public_domain",
+	    "attribution": "Wikimedia Commons public-domain scan"
+	  },
+	  "glyphs": [
+	    {
+	      "glyph_id": "ou-jiuchenggong-yong-original",
+	      "character": "永",
+	      "source_image": "s3://nebula-calligraphy/copybooks/jiuchenggong/page-001.png",
+	      "crop_box": {"x": 100, "y": 120, "width": 80, "height": 96, "unit": "px"},
+	      "license_status": "public_domain",
+	      "review_status": "published"
+	    }
+	  ]
+	}`)
+	router, err := newRouter(appConfig{GlyphManifestFile: manifestPath})
+	if err != nil {
+		t.Fatalf("newRouter() error = %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/calligraphy/glyphs/search?character=永&style=ou&copybook_id=jiuchenggong", nil)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("search status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "ou-jiuchenggong-yong-original") {
+		t.Fatalf("search body = %s, want manifest glyph", rec.Body.String())
+	}
+}
+
+func TestNewRouterRejectsInvalidGlyphManifest(t *testing.T) {
+	manifestPath := writeRuntimeGlyphManifestFixture(t, `{"schema_version":"bad"}`)
+
+	_, err := newRouter(appConfig{GlyphManifestFile: manifestPath})
+	if err == nil {
+		t.Fatal("newRouter(invalid glyph manifest) error = nil, want error")
+	}
+}
+
 func TestTrialRuntimeAllowsFlutterDevCorsOrigin(t *testing.T) {
 	router, err := newRouter(appConfig{})
 	if err != nil {
@@ -318,4 +367,13 @@ func fixtureWebDir(t *testing.T) string {
 		t.Fatalf("WriteFile(index.html) error = %v", err)
 	}
 	return webDir
+}
+
+func writeRuntimeGlyphManifestFixture(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "glyph-manifest.json")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile(glyph manifest) error = %v", err)
+	}
+	return path
 }

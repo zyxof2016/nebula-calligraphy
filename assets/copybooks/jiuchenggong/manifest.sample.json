@@ -1,0 +1,48 @@
+{
+  "schema_version": "calligraphy.glyph_manifest.v1",
+  "copybook": {
+    "copybook_id": "jiuchenggong",
+    "title": "九成宫醴泉铭",
+    "style": "ou",
+    "calligrapher": "欧阳询",
+    "source_url": "https://commons.wikimedia.org/wiki/Category:%E4%B9%9D%E6%88%90%E5%AE%AE%E9%86%B4%E6%B3%89%E9%8A%98",
+    "license_status": "public_domain",
+    "attribution": "Wikimedia Commons public-domain source; replace sample crop boxes with audited coordinates before publishing."
+  },
+  "glyphs": [
+    {
+      "glyph_id": "ou-jiuchenggong-yong-sample",
+      "character": "永",
+      "source_image": "s3://nebula-calligraphy/copybooks/jiuchenggong/source-images/page-001.png",
+      "crop_box": {
+        "x": 100,
+        "y": 120,
+        "width": 80,
+        "height": 96,
+        "unit": "px"
+      },
+      "license_status": "public_domain",
+      "review_status": "draft",
+      "structure_notes": [
+        "样例数据仅用于验证 manifest 格式；上线前必须替换为真实裁切坐标。"
+      ],
+      "brushwork_notes": [
+        "样例数据不得作为已审范字发布。"
+      ]
+    },
+    {
+      "glyph_id": "ou-jiuchenggong-shan-sample",
+      "character": "山",
+      "source_image": "s3://nebula-calligraphy/copybooks/jiuchenggong/source-images/page-001.png",
+      "crop_box": {
+        "x": 220,
+        "y": 120,
+        "width": 80,
+        "height": 96,
+        "unit": "px"
+      },
+      "license_status": "public_domain",
+      "review_status": "draft"
+    }
+  ]
+}

@@ -53,3 +53,14 @@ out/
 # Generated files
 *.pb.go
 *_gen.go
+
+# Calligraphy source assets: keep manifests/docs in git, keep large scans and generated crops outside git.
+assets/copybooks/**/source-images/
+assets/copybooks/**/normalized/
+assets/copybooks/**/crops/
+assets/copybooks/**/*.tif
+assets/copybooks/**/*.tiff
+assets/copybooks/**/*.jpg
+assets/copybooks/**/*.jpeg
+assets/copybooks/**/*.png
+assets/copybooks/**/*.pdf

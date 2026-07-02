@@ -65,6 +65,7 @@ type appConfig struct {
 	AuditFile              string
 	ExportDir              string
 	WebDir                 string
+	GlyphManifestFile      string
 	DatabaseURL            string
 	AuthMode               string
 	IdentityIssuer         string
@@ -104,6 +105,7 @@ func loadConfig() appConfig {
 		AuditFile:              os.Getenv("CALLIGRAPHY_AUDIT_FILE"),
 		ExportDir:              os.Getenv("CALLIGRAPHY_EXPORT_DIR"),
 		WebDir:                 os.Getenv("CALLIGRAPHY_WEB_DIR"),
+		GlyphManifestFile:      os.Getenv("CALLIGRAPHY_GLYPH_MANIFEST_FILE"),
 		DatabaseURL:            os.Getenv("CALLIGRAPHY_DATABASE_URL"),
 		AuthMode:               os.Getenv("CALLIGRAPHY_AUTH_MODE"),
 		IdentityIssuer:         os.Getenv("CALLIGRAPHY_IDENTITY_ISSUER"),
@@ -143,7 +145,10 @@ func newRouter(cfg appConfig) (http.Handler, error) {
 	})
 
 	layout := service.NewLayoutEngine()
-	catalog := service.NewInMemoryGlyphCatalog()
+	catalog, err := newGlyphCatalog(cfg)
+	if err != nil {
+		return nil, err
+	}
 	postgresDB, err := newPostgresDB(cfg)
 	if err != nil {
 		return nil, err
@@ -180,6 +185,18 @@ func newRouter(cfg appConfig) (http.Handler, error) {
 		router.Handle("/artifacts/*", http.StripPrefix("/artifacts/", http.FileServer(http.Dir(cfg.ExportDir))))
 	}
 	return router, nil
+}
+
+func newGlyphCatalog(cfg appConfig) (service.GlyphCatalog, error) {
+	fallback := service.NewInMemoryGlyphCatalog()
+	if cfg.GlyphManifestFile == "" {
+		return fallback, nil
+	}
+	fileCatalog, err := service.NewFileGlyphCatalog(cfg.GlyphManifestFile)
+	if err != nil {
+		return nil, fmt.Errorf("load CALLIGRAPHY_GLYPH_MANIFEST_FILE: %w", err)
+	}
+	return service.NewCompositeGlyphCatalog(fileCatalog, fallback), nil
 }
 
 func validateConfig(cfg appConfig) error {

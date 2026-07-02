@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "contract": "calligraphy.glyph_manifest.v1",
+  "description": "Nebula Calligraphy 碑帖范字库 manifest。用于登记碑帖来源、授权、单字裁切框和审校状态。",
+  "required": [
+    "schema_version",
+    "copybook",
+    "glyphs"
+  ],
+  "fields": {
+    "schema_version": "固定为 calligraphy.glyph_manifest.v1。",
+    "copybook": {
+      "copybook_id": "来源碑帖稳定标识，例如 jiuchenggong。",
+      "title": "碑帖名称，例如 九成宫醴泉铭。",
+      "style": "书体，例如 ou。",
+      "calligrapher": "书家名称。",
+      "source_url": "可追溯的扫描来源页面或馆藏页面 URL。",
+      "license_status": "public_domain、licensed、restricted 或 pending_review。",
+      "attribution": "来源署名、馆藏说明、授权说明或转存说明。"
+    },
+    "glyphs": [
+      {
+        "glyph_id": "稳定单字资产 ID。",
+        "character": "一个 Unicode 汉字。",
+        "style": "可选；默认继承 copybook.style。",
+        "copybook_id": "可选；默认继承 copybook.copybook_id。",
+        "calligrapher": "可选；默认继承 copybook.calligrapher。",
+        "source_image": "来源页图片 URL、对象存储 key 或本地受控路径。",
+        "crop_box": {
+          "x": "来源图片左上角 x 坐标。",
+          "y": "来源图片左上角 y 坐标。",
+          "width": "裁切宽度，必须大于 0。",
+          "height": "裁切高度，必须大于 0。",
+          "unit": "px 或 ratio；省略时按 px。"
+        },
+        "license_status": "可选；默认继承 copybook.license_status。",
+        "review_status": "draft、expert_reviewed、published 或 rejected；只有 published 会对外服务。",
+        "structure_notes": "可选，面向学习者的结构观察。",
+        "brushwork_notes": "可选，面向学习者的笔法观察。"
+      }
+    ]
+  },
+  "runtime": {
+    "env": "CALLIGRAPHY_GLYPH_MANIFEST_FILE",
+    "behavior": "配置后，manifest 字库优先于内置种子字库；受限、草稿和未发布字不会被搜索或详情接口返回。"
+  }
+}
