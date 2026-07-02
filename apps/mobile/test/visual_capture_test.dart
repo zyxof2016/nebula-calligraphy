@@ -7,9 +7,6 @@ import 'app_controller_test.dart';
 
 void main() {
   setUpAll(() async {
-    final loader = FontLoader('NotoSerifCJK')
-      ..addFont(rootBundle.load('assets/fonts/NotoSerifCJK-Regular.ttc'));
-    await loader.load();
     final calligraphyLoader = FontLoader('MaShanZheng')
       ..addFont(rootBundle.load('assets/fonts/MaShanZheng-Regular.ttf'));
     await calligraphyLoader.load();

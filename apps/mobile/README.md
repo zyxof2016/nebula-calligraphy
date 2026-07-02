@@ -37,7 +37,7 @@ CALLIGRAPHY_ALLOWED_ORIGINS=https://calligraphy.example
 
 ## 字体资产
 
-- `NotoSerifCJK-Regular.ttc`：用于中文 UI 和缺字兜底，保证 Web、移动端和测试环境稳定显示中文。
+- UI 中文字体使用设备系统字体，不再在 Web 包内捆绑完整 CJK 字体，避免首访下载 20MB+ 字体资产。
 - `MaShanZheng-Regular.ttf`：OFL 许可的书法展示字体，用于临摹参考字和章法预览。它是当前试用版的视觉兜底，不替代后续真实碑帖裁切图、授权书体和专家审核字库。
 
 ## 验证命令

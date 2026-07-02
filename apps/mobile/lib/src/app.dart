@@ -12,7 +12,6 @@ const calligraphyFontFallback = <String>[
   'KaiTi',
   'BiauKai',
   'DFKai-SB',
-  'NotoSerifCJK',
   'Noto Serif CJK SC',
   'serif',
 ];
@@ -84,14 +83,15 @@ class _CalligraphyAppState extends State<CalligraphyApp> {
         ),
         scaffoldBackgroundColor: const Color(0xFFF7F4EB),
         useMaterial3: true,
-        fontFamily: 'NotoSerifCJK',
         fontFamilyFallback: const [
-          'Noto Serif CJK SC',
-          'Noto Sans CJK SC',
           'PingFang SC',
+          'Microsoft YaHei',
+          'Noto Sans CJK SC',
+          'Noto Serif CJK SC',
           'KaiTi',
           'STKaiti',
-          'serif',
+          'MaShanZheng',
+          'sans-serif',
         ],
         cardTheme: const CardThemeData(
           color: Color(0xFFFFFCF5),
