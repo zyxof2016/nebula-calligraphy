@@ -32,14 +32,20 @@ CALLIGRAPHY_ALLOWED_ORIGINS=https://calligraphy.example
 - 常用字速查和碑帖字形检索。
 - 单字详情展示，包括结构要点、笔法要点和临摹记录入口。
 - 集字创作表单，支持书体和幅式选择。
-- 章法预览画布，按后端返回坐标绘制竖排布局。
+- 章法预览画布，按后端返回坐标绘制竖排布局、落款和印章。
 - 保存作品草稿并导出参考 SVG。
+
+## 字体资产
+
+- `NotoSerifCJK-Regular.ttc`：用于中文 UI 和缺字兜底，保证 Web、移动端和测试环境稳定显示中文。
+- `MaShanZheng-Regular.ttf`：OFL 许可的书法展示字体，用于临摹参考字和章法预览。它是当前试用版的视觉兜底，不替代后续真实碑帖裁切图、授权书体和专家审核字库。
 
 ## 验证命令
 
 ```bash
 flutter analyze
 flutter test
+flutter test test/visual_capture_test.dart --update-goldens
 flutter build web --dart-define=CALLIGRAPHY_API_BASE_URL=http://localhost:8090
 ```
 

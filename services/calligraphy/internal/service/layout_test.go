@@ -44,6 +44,79 @@ func TestLayoutPreviewUsesVerticalRightToLeftSlots(t *testing.T) {
 	}
 }
 
+func TestLayoutPreviewBalancesFourCharacterDoufang(t *testing.T) {
+	engine := NewLayoutEngine()
+
+	result, err := engine.Preview(model.LayoutRequest{
+		Text:      "山水清音",
+		Style:     "ou",
+		Direction: "vertical_rtl",
+		Paper: model.PaperSpec{
+			Format:   "doufang",
+			WidthCM:  69,
+			HeightCM: 68,
+		},
+		MarginCM: 3,
+	})
+	if err != nil {
+		t.Fatalf("Preview() error = %v", err)
+	}
+
+	if result.Columns != 2 || result.Rows != 2 {
+		t.Fatalf("grid = %d columns x %d rows, want 2 x 2", result.Columns, result.Rows)
+	}
+	if !(result.Slots[0].XCM > result.Slots[2].XCM) {
+		t.Fatalf("right-to-left columns not preserved: first column x %.2f, second column x %.2f", result.Slots[0].XCM, result.Slots[2].XCM)
+	}
+	if !(result.Slots[0].YCM < result.Slots[1].YCM) {
+		t.Fatalf("vertical row order not preserved: first row y %.2f, second row y %.2f", result.Slots[0].YCM, result.Slots[1].YCM)
+	}
+}
+
+func TestLayoutPreviewPrefersTwoColumnEightCharacterDoufang(t *testing.T) {
+	engine := NewLayoutEngine()
+
+	result, err := engine.Preview(model.LayoutRequest{
+		Text:      "山高月小水落石出",
+		Style:     "ou",
+		Direction: "vertical_rtl",
+		Paper: model.PaperSpec{
+			Format:   "doufang",
+			WidthCM:  69,
+			HeightCM: 68,
+		},
+		MarginCM: 3,
+		Signature: model.SignatureSpec{
+			Text: "六月试书",
+		},
+		SealCount: 1,
+	})
+	if err != nil {
+		t.Fatalf("Preview() error = %v", err)
+	}
+
+	if result.Columns != 2 || result.Rows != 4 {
+		t.Fatalf("grid = %d columns x %d rows, want 2 x 4", result.Columns, result.Rows)
+	}
+	if len(result.SignatureSlots) != 4 {
+		t.Fatalf("len(SignatureSlots) = %d, want 4", len(result.SignatureSlots))
+	}
+	for i, slot := range result.SignatureSlots {
+		if slot.Index != i {
+			t.Fatalf("SignatureSlots[%d].Index = %d, want %d", i, slot.Index, i)
+		}
+	}
+	if len(result.SealSlots) != 1 {
+		t.Fatalf("len(SealSlots) = %d, want 1", len(result.SealSlots))
+	}
+	if !(result.SignatureSlots[0].XCM < result.Slots[len(result.Slots)-1].XCM) {
+		t.Fatalf("signature should be reserved on the left: signature x %.2f, content x %.2f", result.SignatureSlots[0].XCM, result.Slots[len(result.Slots)-1].XCM)
+	}
+	if !(result.SealSlots[0].YCM > result.SignatureSlots[len(result.SignatureSlots)-1].YCM) {
+		t.Fatalf("seal should sit below signature: seal y %.2f, signature y %.2f", result.SealSlots[0].YCM, result.SignatureSlots[len(result.SignatureSlots)-1].YCM)
+	}
+}
+
 func TestLayoutPreviewNormalizesPunctuationAndWhitespace(t *testing.T) {
 	engine := NewLayoutEngine()
 

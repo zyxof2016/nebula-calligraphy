@@ -92,8 +92,8 @@ func (e *LayoutEngine) Preview(req model.LayoutRequest) (model.LayoutResult, err
 		GlyphSizeCM:    round2(glyphSize),
 		Slots:          slots,
 	}
-	result.SignatureSlots = buildSignatureSlots(req, margin, glyphSize)
-	result.SealSlots = buildSealSlots(req, margin, glyphSize)
+	result.SignatureSlots = buildSignatureSlots(req, margin, signatureReserve, glyphSize)
+	result.SealSlots = buildSealSlots(req, margin, signatureReserve, glyphSize)
 	return result, nil
 }
 
@@ -133,10 +133,18 @@ func chooseVerticalGrid(count int, width, height float64) (int, int, float64, fl
 		rows := int(math.Ceil(float64(count) / float64(columns)))
 		cellWidth := width / float64(columns)
 		cellHeight := height / float64(rows)
-		glyphSize := math.Min(cellWidth, cellHeight) * 0.75
-		aspectPenalty := math.Abs(cellWidth-cellHeight) * 0.05
-		emptyPenalty := float64(columns*rows-count) * 0.1
-		score := glyphSize - aspectPenalty - emptyPenalty
+		glyphSize := math.Min(cellWidth*0.72, cellHeight*0.68)
+		emptyCells := float64(columns*rows - count)
+		emptyPenalty := emptyCells * glyphSize * 0.05
+		columnPenalty := float64(columns-1) * glyphSize * 0.18
+		shapePenalty := 0.0
+		if count > 3 && rows < columns {
+			shapePenalty = glyphSize * 0.35
+		}
+		if count >= 8 && rows < 4 {
+			shapePenalty += glyphSize * 0.2
+		}
+		score := glyphSize - emptyPenalty - columnPenalty - shapePenalty
 		if score > bestScore {
 			bestScore = score
 			bestColumns = columns
@@ -164,7 +172,7 @@ func signatureReserveCM(req model.LayoutRequest) float64 {
 	return reserve
 }
 
-func buildSignatureSlots(req model.LayoutRequest, margin, glyphSize float64) []model.TextSlot {
+func buildSignatureSlots(req model.LayoutRequest, margin, reserve, glyphSize float64) []model.TextSlot {
 	if req.Signature.Text == "" {
 		return nil
 	}
@@ -172,12 +180,16 @@ func buildSignatureSlots(req model.LayoutRequest, margin, glyphSize float64) []m
 	if size <= 0 {
 		size = 1
 	}
+	x := margin
+	if reserve > 0 {
+		x = margin + reserve*0.42
+	}
 	slots := make([]model.TextSlot, 0, len([]rune(req.Signature.Text)))
-	for i, r := range req.Signature.Text {
+	for i, r := range []rune(req.Signature.Text) {
 		slots = append(slots, model.TextSlot{
 			Index:  i,
 			Text:   string(r),
-			XCM:    round2(margin),
+			XCM:    round2(x),
 			YCM:    round2(margin + float64(i)*size*1.35),
 			SizeCM: round2(size),
 		})
@@ -185,7 +197,7 @@ func buildSignatureSlots(req model.LayoutRequest, margin, glyphSize float64) []m
 	return slots
 }
 
-func buildSealSlots(req model.LayoutRequest, margin, glyphSize float64) []model.TextSlot {
+func buildSealSlots(req model.LayoutRequest, margin, reserve, glyphSize float64) []model.TextSlot {
 	if req.SealCount <= 0 {
 		return nil
 	}
@@ -193,12 +205,16 @@ func buildSealSlots(req model.LayoutRequest, margin, glyphSize float64) []model.
 	if size <= 0 {
 		size = 1.4
 	}
+	x := margin
+	if reserve > 0 {
+		x = margin + reserve*0.42
+	}
 	slots := make([]model.TextSlot, 0, req.SealCount)
 	for i := 0; i < req.SealCount; i++ {
 		slots = append(slots, model.TextSlot{
 			Index:  i,
 			Text:   "seal",
-			XCM:    round2(margin),
+			XCM:    round2(x),
 			YCM:    round2(req.Paper.HeightCM - margin - float64(i+1)*size*1.15),
 			SizeCM: round2(size),
 		})

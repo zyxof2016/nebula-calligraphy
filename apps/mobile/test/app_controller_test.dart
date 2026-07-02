@@ -104,21 +104,58 @@ class FakeCalligraphyGateway implements CalligraphyGateway {
   @override
   Future<LayoutResult> previewLayout(LayoutRequest request) async {
     lastLayoutStyle = request.style;
+    final normalizedText = request.text.replaceAll(RegExp(r'\s+'), '');
+    final characters = normalizedText.split('');
+    final rows = characters.length <= 4 ? 2 : 4;
+    final columns = (characters.length / rows).ceil();
+    final cellWidth =
+        (request.paper.widthCm - request.marginCm * 2 - 6) / columns;
+    final cellHeight = (request.paper.heightCm - request.marginCm * 2) / rows;
+    final glyphSize = cellWidth < cellHeight
+        ? cellWidth * 0.7
+        : cellHeight * 0.68;
+    final slots = <GlyphSlot>[];
+    for (var i = 0; i < characters.length; i += 1) {
+      final column = i ~/ rows;
+      final row = i % rows;
+      slots.add(
+        GlyphSlot(
+          index: i,
+          character: characters[i],
+          column: column,
+          row: row,
+          xCm:
+              request.paper.widthCm -
+              request.marginCm -
+              6 -
+              cellWidth * (column + 0.5),
+          yCm: request.marginCm + cellHeight * (row + 0.5),
+          sizeCm: glyphSize,
+        ),
+      );
+    }
     return LayoutResult(
       layoutId: 'layout-1',
-      normalizedText: request.text,
-      characterCount: request.text.length,
+      normalizedText: normalizedText,
+      characterCount: characters.length,
       style: request.style,
       copybookId: request.copybookId,
       paper: request.paper,
       direction: request.direction,
       marginCm: request.marginCm,
-      columns: 2,
-      rows: 2,
-      glyphSizeCm: 25,
-      slots: const [],
-      signatureSlots: const [],
-      sealSlots: const [],
+      columns: columns,
+      rows: rows,
+      glyphSizeCm: glyphSize,
+      slots: slots,
+      signatureSlots: const [
+        TextSlot(index: 0, text: '六', xCm: 5.5, yCm: 7, sizeCm: 1.2),
+        TextSlot(index: 1, text: '月', xCm: 5.5, yCm: 9, sizeCm: 1.2),
+        TextSlot(index: 2, text: '试', xCm: 5.5, yCm: 11, sizeCm: 1.2),
+        TextSlot(index: 3, text: '书', xCm: 5.5, yCm: 13, sizeCm: 1.2),
+      ],
+      sealSlots: const [
+        TextSlot(index: 0, text: 'seal', xCm: 5.5, yCm: 62, sizeCm: 1.8),
+      ],
     );
   }
 

@@ -24,3 +24,6 @@ flutter:
     - family: NotoSerifCJK
       fonts:
         - asset: assets/fonts/NotoSerifCJK-Regular.ttc
+    - family: MaShanZheng
+      fonts:
+        - asset: assets/fonts/MaShanZheng-Regular.ttf

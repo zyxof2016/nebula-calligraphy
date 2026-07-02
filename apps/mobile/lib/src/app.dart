@@ -5,6 +5,35 @@ import 'calligraphy_api.dart';
 import 'models.dart';
 import 'session_store.dart';
 
+const calligraphyFontFallback = <String>[
+  'MaShanZheng',
+  'STKaiti',
+  'Kaiti SC',
+  'KaiTi',
+  'BiauKai',
+  'DFKai-SB',
+  'NotoSerifCJK',
+  'Noto Serif CJK SC',
+  'serif',
+];
+
+String calligraphyFontFamily(String style) {
+  switch (style) {
+    case 'ou':
+    case 'regular_ou':
+    case 'yan':
+    case 'regular_yan':
+    case 'liu':
+    case 'regular_liu':
+    case 'zhao':
+    case 'regular_zhao':
+    case 'slender_gold':
+      return 'MaShanZheng';
+    default:
+      return 'MaShanZheng';
+  }
+}
+
 class CalligraphyApp extends StatefulWidget {
   const CalligraphyApp({
     super.key,
@@ -1415,7 +1444,7 @@ class _CreationPageState extends State<CreationPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('集字创作', style: Theme.of(context).textTheme.headlineSmall),
+        Text('创作', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 12),
         TextField(
           controller: _text,
@@ -1555,18 +1584,37 @@ class StyleSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SegmentedButton<String>(
-      segments: selectableStyleOptions.entries
-          .map(
-            (entry) => ButtonSegment<String>(
-              value: entry.key,
-              label: Text(entry.value),
-            ),
-          )
-          .toList(),
-      selected: {controller.selectedStyle},
-      onSelectionChanged: (value) {
-        controller.setSelectedStyle(value.single);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 560) {
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: selectableStyleOptions.entries
+                .map(
+                  (entry) => ChoiceChip(
+                    label: Text(entry.value, softWrap: false),
+                    selected: controller.selectedStyle == entry.key,
+                    onSelected: (_) => controller.setSelectedStyle(entry.key),
+                  ),
+                )
+                .toList(),
+          );
+        }
+        return SegmentedButton<String>(
+          segments: selectableStyleOptions.entries
+              .map(
+                (entry) => ButtonSegment<String>(
+                  value: entry.key,
+                  label: Text(entry.value, softWrap: false),
+                ),
+              )
+              .toList(),
+          selected: {controller.selectedStyle},
+          onSelectionChanged: (value) {
+            controller.setSelectedStyle(value.single);
+          },
+        );
       },
     );
   }
@@ -1771,6 +1819,7 @@ class ReferenceGlyphCard extends StatelessWidget {
             child: CustomPaint(
               painter: ReferenceGlyphPainter(
                 character: glyph.character,
+                styleKey: glyph.style,
                 style: Theme.of(context).textTheme.displayLarge,
                 fontSize: fontSize,
                 mode: mode,
@@ -1786,12 +1835,14 @@ class ReferenceGlyphCard extends StatelessWidget {
 class ReferenceGlyphPainter extends CustomPainter {
   ReferenceGlyphPainter({
     required this.character,
+    required this.styleKey,
     required this.style,
     required this.fontSize,
     required this.mode,
   });
 
   final String character;
+  final String styleKey;
   final TextStyle? style;
   final double fontSize;
   final String mode;
@@ -1844,9 +1895,9 @@ class ReferenceGlyphPainter extends CustomPainter {
           color: mode == 'outline'
               ? const Color(0x551E1B16)
               : const Color(0xFF1E1B16),
-          fontFamily: 'NotoSerifCJK',
-          fontFamilyFallback: const ['Noto Serif CJK SC', 'KaiTi', 'serif'],
-          fontWeight: FontWeight.w500,
+          fontFamily: calligraphyFontFamily(styleKey),
+          fontFamilyFallback: calligraphyFontFallback,
+          fontWeight: FontWeight.w400,
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -1864,6 +1915,7 @@ class ReferenceGlyphPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant ReferenceGlyphPainter oldDelegate) {
     return oldDelegate.character != character ||
+        oldDelegate.styleKey != styleKey ||
         oldDelegate.style != style ||
         oldDelegate.fontSize != fontSize ||
         oldDelegate.mode != mode;
@@ -1905,8 +1957,12 @@ class LayoutPreviewCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${result.paper.format} · ${result.columns}列 x ${result.rows}行',
+              '章法预览 · ${result.paper.format}',
               style: Theme.of(context).textTheme.titleMedium,
+            ),
+            Text(
+              '竖排右起 · ${result.columns}列 x ${result.rows}行 · 字径 ${result.glyphSizeCm.toStringAsFixed(1)}cm',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 12),
             AspectRatio(
@@ -1931,34 +1987,134 @@ class LayoutPreviewPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paperPaint = Paint()..color = const Color(0xfffffbf2);
+    final fiberPaint = Paint()
+      ..color = const Color(0x12A98652)
+      ..strokeWidth = 0.7;
     final borderPaint = Paint()
       ..color = const Color(0xff8b7a5a)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
+    final innerBorderPaint = Paint()
+      ..color = const Color(0x668B7A5A)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8;
     canvas.drawRect(Offset.zero & size, paperPaint);
+    for (var i = 1; i < 8; i += 1) {
+      final y = size.height * i / 8;
+      canvas.drawLine(
+        Offset(size.width * 0.06, y),
+        Offset(size.width * 0.94, y),
+        fiberPaint,
+      );
+    }
     canvas.drawRect(Offset.zero & size, borderPaint);
 
+    final marginRect = Rect.fromLTRB(
+      _cmX(result.marginCm, size),
+      _cmY(result.marginCm, size),
+      _cmX(result.paper.widthCm - result.marginCm, size),
+      _cmY(result.paper.heightCm - result.marginCm, size),
+    );
+    canvas.drawRect(marginRect, innerBorderPaint);
+
+    for (final slot in result.slots) {
+      final baseSize = _fontPx(slot.sizeCm, size);
+      final rhythmScale = 0.94 + (slot.index % 4) * 0.025;
+      final dx = slot.index.isEven ? -baseSize * 0.025 : baseSize * 0.018;
+      final dy = slot.row.isEven ? -baseSize * 0.012 : baseSize * 0.018;
+      _paintCenteredText(
+        canvas,
+        slot.character,
+        Offset(_cmX(slot.xCm, size) + dx, _cmY(slot.yCm, size) + dy),
+        baseSize * rhythmScale,
+        const Color(0xff1d1b16),
+        FontWeight.w400,
+      );
+    }
+
+    for (final slot in result.signatureSlots) {
+      if (slot.text.trim().isEmpty) {
+        continue;
+      }
+      _paintCenteredText(
+        canvas,
+        slot.text,
+        Offset(_cmX(slot.xCm, size), _cmY(slot.yCm, size)),
+        _fontPx(slot.sizeCm, size).clamp(9, 18),
+        const Color(0xff3d3428),
+        FontWeight.w400,
+      );
+    }
+
+    for (final slot in result.sealSlots) {
+      _paintSeal(canvas, slot, size);
+    }
+  }
+
+  double _cmX(double cm, Size size) => cm / result.paper.widthCm * size.width;
+
+  double _cmY(double cm, Size size) => cm / result.paper.heightCm * size.height;
+
+  double _fontPx(double sizeCm, Size size) {
+    final xPx = sizeCm / result.paper.widthCm * size.width;
+    final yPx = sizeCm / result.paper.heightCm * size.height;
+    return (xPx < yPx ? xPx : yPx).clamp(14, 84);
+  }
+
+  void _paintCenteredText(
+    Canvas canvas,
+    String text,
+    Offset center,
+    double fontSize,
+    Color color,
+    FontWeight weight,
+  ) {
     final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: fontSize,
+          height: 1,
+          fontFamily: calligraphyFontFamily(result.style),
+          fontFamilyFallback: calligraphyFontFallback,
+          fontWeight: weight,
+        ),
+      ),
       textAlign: TextAlign.center,
       textDirection: TextDirection.ltr,
+    )..layout();
+    textPainter.paint(
+      canvas,
+      Offset(
+        center.dx - textPainter.width / 2,
+        center.dy - textPainter.height / 2,
+      ),
     );
-    for (final slot in result.slots) {
-      final x = slot.xCm / result.paper.widthCm * size.width;
-      final y = slot.yCm / result.paper.heightCm * size.height;
-      textPainter.text = TextSpan(
-        text: slot.character,
-        style: TextStyle(
-          color: const Color(0xff1d1b16),
-          fontSize: (slot.sizeCm / result.paper.widthCm * size.width).clamp(
-            16,
-            52,
-          ),
-          fontWeight: FontWeight.w500,
-        ),
-      );
-      textPainter.layout();
-      textPainter.paint(canvas, Offset(x, y));
-    }
+  }
+
+  void _paintSeal(Canvas canvas, TextSlot slot, Size size) {
+    final side = _fontPx(slot.sizeCm, size).clamp(13, 26).toDouble();
+    final rect = Rect.fromCenter(
+      center: Offset(_cmX(slot.xCm, size), _cmY(slot.yCm, size)),
+      width: side,
+      height: side,
+    );
+    final fillPaint = Paint()..color = const Color(0x22B3261E);
+    final strokePaint = Paint()
+      ..color = const Color(0xffB3261E)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    canvas.drawRect(rect, fillPaint);
+    canvas.drawRect(rect.deflate(1.2), strokePaint);
+    _paintCenteredText(
+      canvas,
+      '印',
+      rect.center,
+      side * 0.48,
+      const Color(0xffB3261E),
+      FontWeight.w600,
+    );
   }
 
   @override
