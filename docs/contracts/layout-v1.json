@@ -39,7 +39,7 @@
       "columns": "计算得到的列数。",
       "rows": "计算得到的行数。",
       "glyph_size_cm": "推荐字径，单位厘米。",
-      "slots": "有序字符位置。",
+      "slots": "有序字符位置。每个 slot 可带 render_asset，前端优先按服务端字图渲染。",
       "signature_slots": "建议落款位置。",
       "seal_slots": "建议印章位置。"
     }

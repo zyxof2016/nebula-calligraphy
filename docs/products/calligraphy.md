@@ -30,6 +30,7 @@ Nebula Calligraphy 是面向 C 端的 AI 书法学习与集字创作应用。它
 | `GET /api/v1/calligraphy/glyphs/search` | 已实现 | 只查询已授权且已发布的种子字形；配置 `CALLIGRAPHY_GLYPH_MANIFEST_FILE` 后优先返回 manifest 中已发布的真实裁切字 |
 | `GET /api/v1/calligraphy/glyphs/presets` | 已实现 | 每种书体返回 120+ 个预置常用学习字，并按练习目的分组 |
 | `GET /api/v1/calligraphy/glyphs/{id}` | 已实现 | 返回字形详情、结构说明、笔法说明和练习模板 |
+| `GET /api/v1/calligraphy/glyphs/{id}/render.png` | 已实现 | 服务端按需生成 512x512 PNG 字图，前端不需要下载书法字体 |
 | `POST /api/v1/calligraphy/layouts/preview` | 已实现 | 传统 `vertical_rtl` 章法预览，支持边距、落款和印章位；斗方场景优先保持竖排作品感，例如 4 字 2x2、8 字 2 列 4 行 |
 | `POST /api/v1/calligraphy/artworks/drafts` | 已实现 | 根据排版请求保存作品草稿；默认内存存储，配置后写入 JSON 文件 |
 | `GET /api/v1/calligraphy/artworks/drafts` | 已实现 | 查询认证用户的草稿列表；所属用户不匹配会被拒绝 |
@@ -46,12 +47,13 @@ Nebula Calligraphy 是面向 C 端的 AI 书法学习与集字创作应用。它
 
 ## 视觉和字体策略
 
-当前试用版采用系统 UI 字体加书法展示字体：
+当前试用版采用系统 UI 字体加服务端字图渲染：
 
 - 中文 UI：使用设备系统字体，不在 Web 包内捆绑完整 CJK 字体，降低首访下载体积。
-- Ma Shan Zheng：OFL 许可的书法展示字体，用于临摹参考字和章法预览，避免生产 Web 依赖设备系统楷体。
+- 书法内容：字形搜索、单字详情和章法预览返回 `render_asset`，前端直接加载服务端 PNG 字图。
+- 服务端兜底字体：`assets/fonts/MaShanZheng-Regular.ttf` 仅部署到服务端，由 `CALLIGRAPHY_RENDER_FONT_FILE` 使用，不进入 Web 包。
 
-Ma Shan Zheng 只是当前无授权碑帖裁切图时的视觉兜底。正式内容生产仍应以授权碑帖高清图、单字裁切、书体来源标注和专家审核为准，不能把通用展示字体当作真实欧体、颜体、柳体或赵体字库。
+Ma Shan Zheng 只是当前无授权碑帖裁切图时的服务端视觉兜底。正式内容生产仍应以授权碑帖高清图、单字裁切、书体来源标注和专家审核为准，不能把通用展示字体当作真实欧体、颜体、柳体或赵体字库。
 
 ## 碑帖范字流水线
 
@@ -61,6 +63,8 @@ Ma Shan Zheng 只是当前无授权碑帖裁切图时的视觉兜底。正式内
 - `docs/contracts/glyph-manifest-v1.json`：机器可读契约，定义碑帖来源、授权、单字裁切框和审校状态。
 - `services/calligraphy/cmd/calligraphy-glyph-manifest`：导入前校验工具。
 - `CALLIGRAPHY_GLYPH_MANIFEST_FILE`：运行时加载 manifest 字库，优先于内置兜底字库。
+- `CALLIGRAPHY_RENDER_FONT_FILE`：服务端 PNG 字图渲染兜底字体路径。
+- `CALLIGRAPHY_RENDER_CACHE_DIR`：服务端字图渲染缓存目录。
 
 manifest 必须包含 `source_url`、`license_status`、`attribution`、`source_image` 和正数裁切框。只有 `review_status=published` 且非 `restricted` 的字会对外服务。AI 补字、部件合成字和人工重绘字后续必须单独标注，不能混入原碑裁切字。
 

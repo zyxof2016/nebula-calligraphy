@@ -24,6 +24,14 @@ void main() {
                 'copybook_id': 'jiuchenggong',
                 'calligrapher': '欧阳询',
                 'source_image': 'copybooks/jiuchenggong/yong.png',
+                'render_asset': {
+                  'url':
+                      'http://calligraphy.test/api/v1/calligraphy/glyphs/ou-yong-001/render.png',
+                  'content_type': 'image/png',
+                  'width': 512,
+                  'height': 512,
+                  'source': 'server_font',
+                },
                 'crop_box': {
                   'x': 0,
                   'y': 0,
@@ -48,6 +56,8 @@ void main() {
     expect(glyphs.single.character, '永');
     expect(glyphs.single.style, 'regular_ou');
     expect(glyphs.single.copybookId, 'jiuchenggong');
+    expect(glyphs.single.renderAsset.contentType, 'image/png');
+    expect(glyphs.single.renderAsset.url, contains('/render.png'));
   });
 
   test('previewLayout posts layout request and decodes slot matrix', () async {
@@ -82,6 +92,14 @@ void main() {
                 'x_cm': 40,
                 'y_cm': 8,
                 'size_cm': 25,
+                'render_asset': {
+                  'url':
+                      'http://calligraphy.test/api/v1/calligraphy/glyphs/ou-shan-001/render.png',
+                  'content_type': 'image/png',
+                  'width': 512,
+                  'height': 512,
+                  'source': 'server_font',
+                },
               },
             ],
           }),
@@ -103,6 +121,7 @@ void main() {
 
     expect(result.layoutId, 'layout-1');
     expect(result.slots.single.character, '山');
+    expect(result.slots.single.renderAsset.url, contains('/render.png'));
     expect(result.glyphSizeCm, 25);
   });
 }

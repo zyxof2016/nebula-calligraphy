@@ -37,8 +37,9 @@ CALLIGRAPHY_ALLOWED_ORIGINS=https://calligraphy.example
 
 ## 字体资产
 
-- UI 中文字体使用设备系统字体，不再在 Web 包内捆绑完整 CJK 字体，避免首访下载 20MB+ 字体资产。
-- `MaShanZheng-Regular.ttf`：OFL 许可的书法展示字体，用于临摹参考字和章法预览。它是当前试用版的视觉兜底，不替代后续真实碑帖裁切图、授权书体和专家审核字库。
+- UI 中文字体使用设备系统字体，不在 Web 包内捆绑完整 CJK 字体，避免首访下载 20MB+ 字体资产。
+- 书法参考字和章法预览优先使用服务端返回的 `render_asset.url` PNG 字图。前端不再打包书法字体。
+- 本地视觉测试会从仓库根目录 `assets/fonts/` 加载测试字体，保证无中文字体的 Linux 环境也能生成可读截图；该字体不进入 Flutter Web 产物。
 
 ## 验证命令
 

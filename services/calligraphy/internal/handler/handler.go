@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -11,13 +12,14 @@ import (
 )
 
 type Handler struct {
-	catalog  service.GlyphCatalog
-	layout   *service.LayoutEngine
-	artworks *service.ArtworkService
-	learning *service.LearningService
-	auth     *service.AuthService
-	identity service.IdentityVerifier
-	audit    service.AuditLogger
+	catalog       service.GlyphCatalog
+	layout        *service.LayoutEngine
+	artworks      *service.ArtworkService
+	learning      *service.LearningService
+	auth          *service.AuthService
+	identity      service.IdentityVerifier
+	audit         service.AuditLogger
+	glyphRenderer *service.GlyphImageRenderer
 }
 
 func New(catalog service.GlyphCatalog, layout *service.LayoutEngine, artworks *service.ArtworkService, learning *service.LearningService, auth *service.AuthService, audit service.AuditLogger, identity ...service.IdentityVerifier) *Handler {
@@ -28,7 +30,22 @@ func New(catalog service.GlyphCatalog, layout *service.LayoutEngine, artworks *s
 	if len(identity) > 0 && identity[0] != nil {
 		activeIdentity = identity[0]
 	}
-	return &Handler{catalog: catalog, layout: layout, artworks: artworks, learning: learning, auth: auth, identity: activeIdentity, audit: audit}
+	return &Handler{
+		catalog:       catalog,
+		layout:        layout,
+		artworks:      artworks,
+		learning:      learning,
+		auth:          auth,
+		identity:      activeIdentity,
+		audit:         audit,
+		glyphRenderer: service.NewGlyphImageRenderer("", ""),
+	}
+}
+
+func (h *Handler) SetGlyphRenderer(renderer *service.GlyphImageRenderer) {
+	if renderer != nil {
+		h.glyphRenderer = renderer
+	}
 }
 
 func RegisterRoutes(r chi.Router, h *Handler) {
@@ -40,6 +57,7 @@ func RegisterRoutes(r chi.Router, h *Handler) {
 	r.Get("/api/v1/calligraphy/auth/me", h.CurrentUser)
 	r.Get("/api/v1/calligraphy/glyphs/presets", h.ListGlyphPresets)
 	r.Get("/api/v1/calligraphy/glyphs/{glyphID}", h.GetGlyphDetail)
+	r.Get("/api/v1/calligraphy/glyphs/{glyphID}/render.png", h.RenderGlyphPNG)
 	r.Post("/api/v1/calligraphy/layouts/preview", h.PreviewLayout)
 	r.Get("/api/v1/calligraphy/artworks/drafts", h.ListArtworkDrafts)
 	r.Post("/api/v1/calligraphy/artworks/drafts", h.CreateArtworkDraft)
@@ -66,6 +84,9 @@ func (h *Handler) SearchGlyphs(w http.ResponseWriter, r *http.Request) {
 		Style:      query.Get("style"),
 		CopybookID: query.Get("copybook_id"),
 	})
+	for index := range items {
+		items[index] = h.withGlyphRenderAsset(r, items[index])
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
@@ -129,11 +150,18 @@ func (h *Handler) GetGlyphDetail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "glyph_not_found", "glyph not found")
 		return
 	}
+	detail.Glyph = h.withGlyphRenderAsset(r, detail.Glyph)
 	writeJSON(w, http.StatusOK, detail)
 }
 
 func (h *Handler) ListGlyphPresets(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"items": h.catalog.ListPresetGroups(r.URL.Query().Get("style"))})
+	groups := h.catalog.ListPresetGroups(r.URL.Query().Get("style"))
+	for groupIndex := range groups {
+		for glyphIndex := range groups[groupIndex].Glyphs {
+			groups[groupIndex].Glyphs[glyphIndex] = h.withGlyphRenderAsset(r, groups[groupIndex].Glyphs[glyphIndex])
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": groups})
 }
 
 func (h *Handler) PreviewLayout(w http.ResponseWriter, r *http.Request) {
@@ -150,7 +178,29 @@ func (h *Handler) PreviewLayout(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_layout_request", err.Error())
 		return
 	}
+	h.enrichLayoutSlots(r, &result)
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) RenderGlyphPNG(w http.ResponseWriter, r *http.Request) {
+	detail, ok := h.catalog.GetDetail(chi.URLParam(r, "glyphID"))
+	if !ok {
+		writeError(w, http.StatusNotFound, "glyph_not_found", "glyph not found")
+		return
+	}
+	content, err := h.glyphRenderer.RenderPNG(detail.Glyph, service.GlyphRenderOptions{
+		Grid: r.URL.Query().Get("grid"),
+		Size: 512,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "glyph_render_failed", err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(content)
 }
 
 func (h *Handler) CreateArtworkDraft(w http.ResponseWriter, r *http.Request) {
@@ -344,6 +394,56 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 		"code":    code,
 		"message": message,
 	})
+}
+
+func (h *Handler) enrichLayoutSlots(r *http.Request, layout *model.LayoutResult) {
+	for index := range layout.Slots {
+		matches := h.catalog.Search(service.GlyphSearchParams{
+			Character:  layout.Slots[index].Character,
+			Style:      layout.Style,
+			CopybookID: layout.CopybookID,
+		})
+		if len(matches) == 0 {
+			matches = h.catalog.Search(service.GlyphSearchParams{
+				Character: layout.Slots[index].Character,
+				Style:     layout.Style,
+			})
+		}
+		if len(matches) == 0 {
+			continue
+		}
+		layout.Slots[index].RenderAsset = h.withGlyphRenderAsset(r, matches[0]).RenderAsset
+	}
+}
+
+func (h *Handler) withGlyphRenderAsset(r *http.Request, glyph model.Glyph) model.Glyph {
+	if glyph.RenderAsset.URL != "" {
+		return glyph
+	}
+	glyph.RenderAsset = model.RenderAsset{
+		URL:         absoluteURL(r, "/api/v1/calligraphy/glyphs/"+url.PathEscape(glyph.GlyphID)+"/render.png"),
+		ContentType: "image/png",
+		Width:       512,
+		Height:      512,
+		Source:      "server_font",
+	}
+	return glyph
+}
+
+func absoluteURL(r *http.Request, path string) string {
+	proto := r.Header.Get("X-Forwarded-Proto")
+	if proto == "" {
+		if r.TLS != nil {
+			proto = "https"
+		} else {
+			proto = "http"
+		}
+	}
+	host := r.Header.Get("X-Forwarded-Host")
+	if host == "" {
+		host = r.Host
+	}
+	return proto + "://" + host + path
 }
 
 func (h *Handler) requireUser(w http.ResponseWriter, r *http.Request) (model.User, bool) {

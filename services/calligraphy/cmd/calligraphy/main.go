@@ -66,6 +66,8 @@ type appConfig struct {
 	ExportDir              string
 	WebDir                 string
 	GlyphManifestFile      string
+	RenderFontFile         string
+	RenderCacheDir         string
 	DatabaseURL            string
 	AuthMode               string
 	IdentityIssuer         string
@@ -106,6 +108,8 @@ func loadConfig() appConfig {
 		ExportDir:              os.Getenv("CALLIGRAPHY_EXPORT_DIR"),
 		WebDir:                 os.Getenv("CALLIGRAPHY_WEB_DIR"),
 		GlyphManifestFile:      os.Getenv("CALLIGRAPHY_GLYPH_MANIFEST_FILE"),
+		RenderFontFile:         os.Getenv("CALLIGRAPHY_RENDER_FONT_FILE"),
+		RenderCacheDir:         os.Getenv("CALLIGRAPHY_RENDER_CACHE_DIR"),
 		DatabaseURL:            os.Getenv("CALLIGRAPHY_DATABASE_URL"),
 		AuthMode:               os.Getenv("CALLIGRAPHY_AUTH_MODE"),
 		IdentityIssuer:         os.Getenv("CALLIGRAPHY_IDENTITY_ISSUER"),
@@ -166,7 +170,7 @@ func newRouter(cfg appConfig) (http.Handler, error) {
 		return nil, err
 	}
 	authService := service.NewAuthService(authStore)
-	handler.RegisterRoutes(router, handler.New(
+	calligraphyHandler := handler.New(
 		catalog,
 		layout,
 		service.NewArtworkService(artworkStore, layout, service.NewSVGRenderer(), newArtifactStore(cfg)),
@@ -174,7 +178,9 @@ func newRouter(cfg appConfig) (http.Handler, error) {
 		authService,
 		newAuditLogger(cfg),
 		newIdentityVerifier(cfg, authService),
-	))
+	)
+	calligraphyHandler.SetGlyphRenderer(service.NewGlyphImageRenderer(cfg.RenderFontFile, cfg.RenderCacheDir))
+	handler.RegisterRoutes(router, calligraphyHandler)
 	if cfg.WebDir != "" {
 		router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			http.ServeFile(w, r, cfg.WebDir+"/index.html")

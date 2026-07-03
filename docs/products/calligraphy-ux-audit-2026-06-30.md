@@ -60,3 +60,11 @@
 1. 移除 Web 包内完整 Noto Serif CJK 字体，不再为普通 UI 文本下载 20MB+ CJK 字体。
 2. 中文 UI 改为使用设备系统字体，书法参考字和章法预览继续使用内置 Ma Shan Zheng。
 3. Nginx 静态资源增加长期缓存头，字体、CanvasKit 和构建产物不应在每次访问时重复下载。
+
+## 五次收口
+
+收到“如果字体库放服务端渲染后给前端”的方向后，渲染策略进一步调整：
+
+1. 前端 Web 包不再内置 Ma Shan Zheng 或完整 CJK 字体，只保留图标字体。
+2. 服务端新增 `GET /api/v1/calligraphy/glyphs/{id}/render.png`，按需生成 512x512 PNG 字图，并给搜索、详情、章法 slot 返回 `render_asset`。
+3. 部署脚本写入 `CALLIGRAPHY_RENDER_FONT_FILE` 和 `CALLIGRAPHY_RENDER_CACHE_DIR`，字体资产只部署到服务端，后续自有字体库可直接替换。

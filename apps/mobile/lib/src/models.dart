@@ -24,6 +24,34 @@ class CropBox {
   final String unit;
 }
 
+class RenderAsset {
+  const RenderAsset({
+    this.url = '',
+    this.contentType = '',
+    this.width = 0,
+    this.height = 0,
+    this.source = '',
+  });
+
+  factory RenderAsset.fromJson(Map<String, dynamic> json) {
+    return RenderAsset(
+      url: _string(json['url']),
+      contentType: _string(json['content_type']),
+      width: _int(json['width']),
+      height: _int(json['height']),
+      source: _string(json['source']),
+    );
+  }
+
+  final String url;
+  final String contentType;
+  final int width;
+  final int height;
+  final String source;
+
+  bool get isUsable => url.isNotEmpty;
+}
+
 class GlyphSummary {
   const GlyphSummary({
     required this.glyphId,
@@ -34,6 +62,7 @@ class GlyphSummary {
     required this.sourceImage,
     required this.licenseStatus,
     required this.reviewStatus,
+    this.renderAsset = const RenderAsset(),
     this.cropBox,
   });
 
@@ -48,6 +77,9 @@ class GlyphSummary {
       cropBox: json['crop_box'] is Map<String, dynamic>
           ? CropBox.fromJson(json['crop_box'] as Map<String, dynamic>)
           : null,
+      renderAsset: json['render_asset'] is Map<String, dynamic>
+          ? RenderAsset.fromJson(json['render_asset'] as Map<String, dynamic>)
+          : const RenderAsset(),
       licenseStatus: _string(json['license_status']),
       reviewStatus: _string(json['review_status']),
     );
@@ -60,6 +92,7 @@ class GlyphSummary {
   final String calligrapher;
   final String sourceImage;
   final CropBox? cropBox;
+  final RenderAsset renderAsset;
   final String licenseStatus;
   final String reviewStatus;
 }
@@ -204,6 +237,7 @@ class GlyphSlot {
     required this.xCm,
     required this.yCm,
     required this.sizeCm,
+    this.renderAsset = const RenderAsset(),
   });
 
   factory GlyphSlot.fromJson(Map<String, dynamic> json) {
@@ -215,6 +249,9 @@ class GlyphSlot {
       xCm: _double(json['x_cm']),
       yCm: _double(json['y_cm']),
       sizeCm: _double(json['size_cm']),
+      renderAsset: json['render_asset'] is Map<String, dynamic>
+          ? RenderAsset.fromJson(json['render_asset'] as Map<String, dynamic>)
+          : const RenderAsset(),
     );
   }
 
@@ -225,6 +262,7 @@ class GlyphSlot {
   final double xCm;
   final double yCm;
   final double sizeCm;
+  final RenderAsset renderAsset;
 }
 
 class TextSlot {

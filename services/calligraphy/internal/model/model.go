@@ -9,15 +9,24 @@ type CropBox struct {
 }
 
 type Glyph struct {
-	GlyphID       string  `json:"glyph_id"`
-	Character     string  `json:"character"`
-	Style         string  `json:"style"`
-	CopybookID    string  `json:"copybook_id"`
-	Calligrapher  string  `json:"calligrapher"`
-	SourceImage   string  `json:"source_image"`
-	CropBox       CropBox `json:"crop_box"`
-	LicenseStatus string  `json:"license_status"`
-	ReviewStatus  string  `json:"review_status"`
+	GlyphID       string      `json:"glyph_id"`
+	Character     string      `json:"character"`
+	Style         string      `json:"style"`
+	CopybookID    string      `json:"copybook_id"`
+	Calligrapher  string      `json:"calligrapher"`
+	SourceImage   string      `json:"source_image"`
+	CropBox       CropBox     `json:"crop_box"`
+	RenderAsset   RenderAsset `json:"render_asset"`
+	LicenseStatus string      `json:"license_status"`
+	ReviewStatus  string      `json:"review_status"`
+}
+
+type RenderAsset struct {
+	URL         string `json:"url"`
+	ContentType string `json:"content_type"`
+	Width       int    `json:"width"`
+	Height      int    `json:"height"`
+	Source      string `json:"source"`
 }
 
 type PracticeTemplate struct {
@@ -86,13 +95,14 @@ type LayoutResult struct {
 }
 
 type GlyphSlot struct {
-	Index     int     `json:"index"`
-	Character string  `json:"character"`
-	Column    int     `json:"column"`
-	Row       int     `json:"row"`
-	XCM       float64 `json:"x_cm"`
-	YCM       float64 `json:"y_cm"`
-	SizeCM    float64 `json:"size_cm"`
+	Index       int         `json:"index"`
+	Character   string      `json:"character"`
+	Column      int         `json:"column"`
+	Row         int         `json:"row"`
+	XCM         float64     `json:"x_cm"`
+	YCM         float64     `json:"y_cm"`
+	SizeCM      float64     `json:"size_cm"`
+	RenderAsset RenderAsset `json:"render_asset,omitempty"`
 }
 
 type TextSlot struct {

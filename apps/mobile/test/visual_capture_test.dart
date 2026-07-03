@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nebula_calligraphy_app/src/app.dart';
@@ -7,8 +9,11 @@ import 'app_controller_test.dart';
 
 void main() {
   setUpAll(() async {
-    final calligraphyLoader = FontLoader('MaShanZheng')
-      ..addFont(rootBundle.load('assets/fonts/MaShanZheng-Regular.ttf'));
+    final calligraphyFont = await File(
+      '../../assets/fonts/MaShanZheng-Regular.ttf',
+    ).readAsBytes();
+    final calligraphyLoader = FontLoader('KaiTi')
+      ..addFont(Future.value(ByteData.sublistView(calligraphyFont)));
     await calligraphyLoader.load();
     final materialIcons = FontLoader('MaterialIcons')
       ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));

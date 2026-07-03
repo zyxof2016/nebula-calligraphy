@@ -10,6 +10,7 @@
       "copybook_id",
       "source_image",
       "crop_box",
+      "render_asset",
       "license_status"
     ],
     "fields": {
@@ -22,6 +23,13 @@
       "calligrapher": "书家名称。",
       "copybook_id": "来源碑帖标识。",
       "source_image": "来源页图片的对象存储 key 或 URL。",
+      "render_asset": {
+        "url": "前端可直接加载的服务端字图 URL。",
+        "content_type": "当前为 image/png。",
+        "width": "字图像素宽度。",
+        "height": "字图像素高度。",
+        "source": "字图来源，例如 server_font、copybook_crop 或 imported_glyph_image。"
+      },
       "crop_box": {
         "x": "来源图片中的左侧像素坐标。",
         "y": "来源图片中的顶部像素坐标。",

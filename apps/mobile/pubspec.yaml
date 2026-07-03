@@ -20,7 +20,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  fonts:
-    - family: MaShanZheng
-      fonts:
-        - asset: assets/fonts/MaShanZheng-Regular.ttf

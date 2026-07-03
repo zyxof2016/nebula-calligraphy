@@ -45,6 +45,12 @@ func TestSearchGlyphs(t *testing.T) {
 	if len(payload.Items) != 1 {
 		t.Fatalf("len(items) = %d, want 1", len(payload.Items))
 	}
+	if payload.Items[0].RenderAsset.URL != "http://example.com/api/v1/calligraphy/glyphs/ou-jiuchenggong-shan/render.png" {
+		t.Fatalf("RenderAsset.URL = %q, want server render endpoint", payload.Items[0].RenderAsset.URL)
+	}
+	if payload.Items[0].RenderAsset.ContentType != "image/png" {
+		t.Fatalf("RenderAsset.ContentType = %q, want image/png", payload.Items[0].RenderAsset.ContentType)
+	}
 }
 
 func TestGetGlyphDetail(t *testing.T) {
@@ -67,6 +73,31 @@ func TestGetGlyphDetail(t *testing.T) {
 	}
 	if len(payload.PracticeTemplates) == 0 {
 		t.Fatal("PracticeTemplates is empty")
+	}
+	if payload.Glyph.RenderAsset.URL == "" {
+		t.Fatal("Glyph.RenderAsset.URL is empty")
+	}
+}
+
+func TestRenderGlyphSVG(t *testing.T) {
+	router := newTestRouter()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/calligraphy/glyphs/ou-jiuchenggong-shan/render.png?grid=mi", nil)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Content-Type"); got != "image/png" {
+		t.Fatalf("Content-Type = %q, want image/png", got)
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
+		t.Fatalf("Cache-Control = %q, want immutable static cache", got)
+	}
+	body := rec.Body.Bytes()
+	if len(body) < 8 || string(body[:8]) != "\x89PNG\r\n\x1a\n" {
+		t.Fatalf("rendered bytes do not start with PNG signature: % x", body[:min(8, len(body))])
 	}
 }
 

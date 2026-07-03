@@ -6,7 +6,6 @@ import 'models.dart';
 import 'session_store.dart';
 
 const calligraphyFontFallback = <String>[
-  'MaShanZheng',
   'STKaiti',
   'Kaiti SC',
   'KaiTi',
@@ -17,20 +16,7 @@ const calligraphyFontFallback = <String>[
 ];
 
 String calligraphyFontFamily(String style) {
-  switch (style) {
-    case 'ou':
-    case 'regular_ou':
-    case 'yan':
-    case 'regular_yan':
-    case 'liu':
-    case 'regular_liu':
-    case 'zhao':
-    case 'regular_zhao':
-    case 'slender_gold':
-      return 'MaShanZheng';
-    default:
-      return 'MaShanZheng';
-  }
+  return 'KaiTi';
 }
 
 class CalligraphyApp extends StatefulWidget {
@@ -90,7 +76,6 @@ class _CalligraphyAppState extends State<CalligraphyApp> {
           'Noto Serif CJK SC',
           'KaiTi',
           'STKaiti',
-          'MaShanZheng',
           'sans-serif',
         ],
         cardTheme: const CardThemeData(
@@ -1816,20 +1801,129 @@ class ReferenceGlyphCard extends StatelessWidget {
           child: SizedBox(
             width: size,
             height: size,
-            child: CustomPaint(
-              painter: ReferenceGlyphPainter(
-                character: glyph.character,
-                styleKey: glyph.style,
-                style: Theme.of(context).textTheme.displayLarge,
-                fontSize: fontSize,
-                mode: mode,
-              ),
-            ),
+            child: glyph.renderAsset.isUsable
+                ? Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.network(
+                        renderGlyphUrl(glyph.renderAsset.url, mode),
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _FallbackReferenceGlyph(
+                              glyph: glyph,
+                              mode: mode,
+                              fontSize: fontSize,
+                            ),
+                      ),
+                    ],
+                  )
+                : _FallbackReferenceGlyph(
+                    glyph: glyph,
+                    mode: mode,
+                    fontSize: fontSize,
+                  ),
           ),
         ),
       ),
     );
   }
+}
+
+class _FallbackReferenceGlyph extends StatelessWidget {
+  const _FallbackReferenceGlyph({
+    required this.glyph,
+    required this.mode,
+    required this.fontSize,
+  });
+
+  final GlyphSummary glyph;
+  final String mode;
+  final double fontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: ReferenceGlyphPainter(
+        character: glyph.character,
+        styleKey: glyph.style,
+        style: Theme.of(context).textTheme.displayLarge,
+        fontSize: fontSize,
+        mode: mode,
+      ),
+    );
+  }
+}
+
+String renderGlyphUrl(String baseUrl, String mode) {
+  if (baseUrl.isEmpty || mode.isEmpty || mode == 'none') {
+    return baseUrl;
+  }
+  final separator = baseUrl.contains('?') ? '&' : '?';
+  return '$baseUrl${separator}grid=$mode';
+}
+
+class LayoutPreviewSurface extends StatelessWidget {
+  const LayoutPreviewSurface({super.key, required this.result});
+
+  final LayoutResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final allSlotsHaveImages =
+        result.slots.isNotEmpty &&
+        result.slots.every((slot) => slot.renderAsset.isUsable);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final height = constraints.maxHeight;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            CustomPaint(
+              painter: LayoutPreviewPainter(
+                result,
+                paintGlyphText: !allSlotsHaveImages,
+              ),
+              child: const SizedBox.expand(),
+            ),
+            if (allSlotsHaveImages)
+              ...result.slots.map((slot) {
+                final side = _previewGlyphSide(result, slot, width, height);
+                return Positioned(
+                  left: _previewCmX(result, slot.xCm, width) - side / 2,
+                  top: _previewCmY(result, slot.yCm, height) - side / 2,
+                  width: side,
+                  height: side,
+                  child: Image.network(
+                    renderGlyphUrl(slot.renderAsset.url, 'none'),
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                  ),
+                );
+              }),
+          ],
+        );
+      },
+    );
+  }
+}
+
+double _previewCmX(LayoutResult result, double cm, double width) =>
+    cm / result.paper.widthCm * width;
+
+double _previewCmY(LayoutResult result, double cm, double height) =>
+    cm / result.paper.heightCm * height;
+
+double _previewGlyphSide(
+  LayoutResult result,
+  GlyphSlot slot,
+  double width,
+  double height,
+) {
+  final xSide = slot.sizeCm / result.paper.widthCm * width;
+  final ySide = slot.sizeCm / result.paper.heightCm * height;
+  return (xSide < ySide ? xSide : ySide).clamp(18, 160);
 }
 
 class ReferenceGlyphPainter extends CustomPainter {
@@ -1967,10 +2061,7 @@ class LayoutPreviewCard extends StatelessWidget {
             const SizedBox(height: 12),
             AspectRatio(
               aspectRatio: result.paper.widthCm / result.paper.heightCm,
-              child: CustomPaint(
-                painter: LayoutPreviewPainter(result),
-                child: const SizedBox.expand(),
-              ),
+              child: LayoutPreviewSurface(result: result),
             ),
           ],
         ),
@@ -1980,9 +2071,10 @@ class LayoutPreviewCard extends StatelessWidget {
 }
 
 class LayoutPreviewPainter extends CustomPainter {
-  LayoutPreviewPainter(this.result);
+  LayoutPreviewPainter(this.result, {this.paintGlyphText = true});
 
   final LayoutResult result;
+  final bool paintGlyphText;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2017,19 +2109,21 @@ class LayoutPreviewPainter extends CustomPainter {
     );
     canvas.drawRect(marginRect, innerBorderPaint);
 
-    for (final slot in result.slots) {
-      final baseSize = _fontPx(slot.sizeCm, size);
-      final rhythmScale = 0.94 + (slot.index % 4) * 0.025;
-      final dx = slot.index.isEven ? -baseSize * 0.025 : baseSize * 0.018;
-      final dy = slot.row.isEven ? -baseSize * 0.012 : baseSize * 0.018;
-      _paintCenteredText(
-        canvas,
-        slot.character,
-        Offset(_cmX(slot.xCm, size) + dx, _cmY(slot.yCm, size) + dy),
-        baseSize * rhythmScale,
-        const Color(0xff1d1b16),
-        FontWeight.w400,
-      );
+    if (paintGlyphText) {
+      for (final slot in result.slots) {
+        final baseSize = _fontPx(slot.sizeCm, size);
+        final rhythmScale = 0.94 + (slot.index % 4) * 0.025;
+        final dx = slot.index.isEven ? -baseSize * 0.025 : baseSize * 0.018;
+        final dy = slot.row.isEven ? -baseSize * 0.012 : baseSize * 0.018;
+        _paintCenteredText(
+          canvas,
+          slot.character,
+          Offset(_cmX(slot.xCm, size) + dx, _cmY(slot.yCm, size) + dy),
+          baseSize * rhythmScale,
+          const Color(0xff1d1b16),
+          FontWeight.w400,
+        );
+      }
     }
 
     for (final slot in result.signatureSlots) {
@@ -2049,6 +2143,12 @@ class LayoutPreviewPainter extends CustomPainter {
     for (final slot in result.sealSlots) {
       _paintSeal(canvas, slot, size);
     }
+  }
+
+  @override
+  bool shouldRepaint(covariant LayoutPreviewPainter oldDelegate) {
+    return oldDelegate.result != result ||
+        oldDelegate.paintGlyphText != paintGlyphText;
   }
 
   double _cmX(double cm, Size size) => cm / result.paper.widthCm * size.width;
@@ -2115,11 +2215,6 @@ class LayoutPreviewPainter extends CustomPainter {
       const Color(0xffB3261E),
       FontWeight.w600,
     );
-  }
-
-  @override
-  bool shouldRepaint(covariant LayoutPreviewPainter oldDelegate) {
-    return oldDelegate.result != result;
   }
 }
 
