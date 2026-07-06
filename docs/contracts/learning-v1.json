@@ -46,9 +46,20 @@
       "owner_user_id": "学习者 ID。",
       "favorites": "收藏字列表，按最新优先排序。",
       "recent_practice": "近期练习记录，按最新优先排序。",
+      "daily_plan": "服务端根据近期练习和收藏生成的每日推荐练习字。",
       "practice_count": "MVP 存储保留的练习记录总数。",
       "favorite_count": "当前收藏字数量。",
       "last_practiced_at": "存在练习记录时的最近练习时间戳。"
+    }
+  },
+  "practiceSuggestion": {
+    "fields": {
+      "glyph_id": "推荐练习字形标识。",
+      "character": "推荐练习字符。",
+      "style": "推荐书体。",
+      "copybook_id": "来源碑帖或兜底练习库标识。",
+      "title": "推荐来源分组标题。",
+      "reason": "面向学习者的推荐理由。"
     }
   },
   "endpoints": {

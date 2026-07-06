@@ -36,7 +36,7 @@ Nebula Calligraphy 是面向 C 端的 AI 书法学习与集字创作应用。它
 | `GET /api/v1/calligraphy/artworks/drafts` | 已实现 | 查询认证用户的草稿列表；所属用户不匹配会被拒绝 |
 | `DELETE /api/v1/calligraphy/artworks/drafts/{id}` | 已实现 | 删除一个试用草稿 |
 | `POST /api/v1/calligraphy/artworks/drafts/{id}/exports` | 已实现 | 生成 PNG 图片或 SVG 矢量参考导出并计算 SHA256；默认内联返回，配置后写入本地产物文件 |
-| `GET /api/v1/calligraphy/users/{id}/learning` | 已实现 | 返回收藏字、近期练习记录和学习统计 |
+| `GET /api/v1/calligraphy/users/{id}/learning` | 已实现 | 返回收藏字、近期练习记录、学习统计和服务端每日练习建议 |
 | `POST /api/v1/calligraphy/users/{id}/favorites` | 已实现 | 将已发布字形收藏到学习者账号 |
 | `DELETE /api/v1/calligraphy/users/{id}/favorites/{glyph_id}` | 已实现 | 移除一个收藏字 |
 | `POST /api/v1/calligraphy/users/{id}/practice` | 已实现 | 记录一次单字练习动作，包含模板类型和格线类型 |

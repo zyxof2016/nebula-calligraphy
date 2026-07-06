@@ -556,6 +556,13 @@ class DailyPracticeSidebar extends StatelessWidget {
             ),
           ),
         ),
+        if ((profile?.dailyPlan ?? const []).isNotEmpty) ...[
+          const SizedBox(height: 12),
+          DailyPlanCard(
+            suggestions: profile!.dailyPlan,
+            onSelectGlyph: onSelectGlyph,
+          ),
+        ],
         const SizedBox(height: 12),
         Card(
           child: Padding(
@@ -571,6 +578,50 @@ class DailyPracticeSidebar extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class DailyPlanCard extends StatelessWidget {
+  const DailyPlanCard({
+    super.key,
+    required this.suggestions,
+    required this.onSelectGlyph,
+  });
+
+  final List<PracticeSuggestion> suggestions;
+  final ValueChanged<String> onSelectGlyph;
+
+  @override
+  Widget build(BuildContext context) {
+    final first = suggestions.first;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('今日建议', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 6),
+            Text(first.reason, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: suggestions
+                  .take(5)
+                  .map(
+                    (suggestion) => ActionChip(
+                      label: Text(suggestion.character),
+                      tooltip: suggestion.title,
+                      onPressed: () => onSelectGlyph(suggestion.character),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

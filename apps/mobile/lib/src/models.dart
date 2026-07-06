@@ -507,6 +507,7 @@ class LearningProfile {
     required this.ownerUserId,
     required this.favorites,
     required this.recentPractice,
+    required this.dailyPlan,
     required this.practiceCount,
     required this.favoriteCount,
     this.lastPracticedAt = '',
@@ -520,6 +521,7 @@ class LearningProfile {
         json['recent_practice'],
         PracticeRecord.fromJson,
       ),
+      dailyPlan: _objectList(json['daily_plan'], PracticeSuggestion.fromJson),
       practiceCount: _int(json['practice_count']),
       favoriteCount: _int(json['favorite_count']),
       lastPracticedAt: _string(json['last_practiced_at']),
@@ -529,9 +531,39 @@ class LearningProfile {
   final String ownerUserId;
   final List<FavoriteGlyph> favorites;
   final List<PracticeRecord> recentPractice;
+  final List<PracticeSuggestion> dailyPlan;
   final int practiceCount;
   final int favoriteCount;
   final String lastPracticedAt;
+}
+
+class PracticeSuggestion {
+  const PracticeSuggestion({
+    required this.glyphId,
+    required this.character,
+    required this.style,
+    required this.copybookId,
+    required this.title,
+    required this.reason,
+  });
+
+  factory PracticeSuggestion.fromJson(Map<String, dynamic> json) {
+    return PracticeSuggestion(
+      glyphId: _string(json['glyph_id']),
+      character: _string(json['character']),
+      style: _string(json['style']),
+      copybookId: _string(json['copybook_id']),
+      title: _string(json['title']),
+      reason: _string(json['reason']),
+    );
+  }
+
+  final String glyphId;
+  final String character;
+  final String style;
+  final String copybookId;
+  final String title;
+  final String reason;
 }
 
 class User {

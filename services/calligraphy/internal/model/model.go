@@ -180,12 +180,22 @@ type PracticeRecord struct {
 }
 
 type LearningProfile struct {
-	OwnerUserID     string           `json:"owner_user_id"`
-	Favorites       []FavoriteGlyph  `json:"favorites"`
-	RecentPractice  []PracticeRecord `json:"recent_practice"`
-	PracticeCount   int              `json:"practice_count"`
-	FavoriteCount   int              `json:"favorite_count"`
-	LastPracticedAt string           `json:"last_practiced_at,omitempty"`
+	OwnerUserID     string               `json:"owner_user_id"`
+	Favorites       []FavoriteGlyph      `json:"favorites"`
+	RecentPractice  []PracticeRecord     `json:"recent_practice"`
+	DailyPlan       []PracticeSuggestion `json:"daily_plan"`
+	PracticeCount   int                  `json:"practice_count"`
+	FavoriteCount   int                  `json:"favorite_count"`
+	LastPracticedAt string               `json:"last_practiced_at,omitempty"`
+}
+
+type PracticeSuggestion struct {
+	GlyphID    string `json:"glyph_id"`
+	Character  string `json:"character"`
+	Style      string `json:"style"`
+	CopybookID string `json:"copybook_id"`
+	Title      string `json:"title"`
+	Reason     string `json:"reason"`
 }
 
 type AuthRequest struct {

@@ -286,6 +286,7 @@ func (s *LearningService) GetProfile(ownerUserID string) model.LearningProfile {
 		OwnerUserID:    ownerUserID,
 		Favorites:      favorites,
 		RecentPractice: practice,
+		DailyPlan:      s.buildDailyPlan(favorites, practice),
 		PracticeCount:  len(practice),
 		FavoriteCount:  len(favorites),
 	}
@@ -293,6 +294,60 @@ func (s *LearningService) GetProfile(ownerUserID string) model.LearningProfile {
 		profile.LastPracticedAt = practice[0].CreatedAt
 	}
 	return profile
+}
+
+func (s *LearningService) buildDailyPlan(favorites []model.FavoriteGlyph, practice []model.PracticeRecord) []model.PracticeSuggestion {
+	style := "ou"
+	if len(practice) > 0 && strings.TrimSpace(practice[0].Style) != "" {
+		style = practice[0].Style
+	} else if len(favorites) > 0 && strings.TrimSpace(favorites[0].Style) != "" {
+		style = favorites[0].Style
+	}
+	practiced := map[string]bool{}
+	for _, record := range practice {
+		practiced[record.GlyphID] = true
+		practiced[record.Character] = true
+	}
+	plan := make([]model.PracticeSuggestion, 0, 5)
+	for _, group := range s.catalog.ListPresetGroups(style) {
+		for _, glyph := range group.Glyphs {
+			if practiced[glyph.GlyphID] || practiced[glyph.Character] {
+				continue
+			}
+			plan = append(plan, model.PracticeSuggestion{
+				GlyphID:    glyph.GlyphID,
+				Character:  glyph.Character,
+				Style:      glyph.Style,
+				CopybookID: glyph.CopybookID,
+				Title:      group.Title,
+				Reason:     dailyPlanReason(group),
+			})
+			if len(plan) >= 5 {
+				return plan
+			}
+		}
+	}
+	return plan
+}
+
+func dailyPlanReason(group model.GlyphPresetGroup) string {
+	switch group.GroupID {
+	case "basic-strokes":
+		return "巩固基础笔画和起收笔"
+	case "structure":
+		return "观察中宫、重心和开合"
+	case "nature":
+		return "为诗词创作积累常用意象字"
+	case "poetry":
+		return "提升唐诗高频字熟练度"
+	case "virtue":
+		return "适合书斋小品和斗方练习"
+	default:
+		if strings.TrimSpace(group.Description) != "" {
+			return group.Description
+		}
+		return "保持每日临摹节奏"
+	}
 }
 
 func (s *LearningService) findGlyph(glyphID string) (model.GlyphDetail, error) {

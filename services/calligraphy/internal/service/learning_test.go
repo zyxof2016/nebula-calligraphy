@@ -43,6 +43,32 @@ func TestLearningServiceFavoritesAndPracticeProfile(t *testing.T) {
 	if len(profile.RecentPractice) != 1 || profile.RecentPractice[0].GlyphID != "ou-common-人" {
 		t.Fatalf("RecentPractice = %#v, want ou-common-人", profile.RecentPractice)
 	}
+	if len(profile.DailyPlan) == 0 {
+		t.Fatal("DailyPlan is empty")
+	}
+	for _, suggestion := range profile.DailyPlan {
+		if suggestion.GlyphID == "ou-common-人" {
+			t.Fatalf("DailyPlan includes already practiced glyph: %#v", suggestion)
+		}
+		if suggestion.Reason == "" {
+			t.Fatalf("DailyPlan suggestion has empty reason: %#v", suggestion)
+		}
+	}
+}
+
+func TestLearningServiceBuildsDailyPlanForNewLearner(t *testing.T) {
+	svc := NewLearningService(NewInMemoryLearningStore(), NewInMemoryGlyphCatalog())
+
+	profile := svc.GetProfile("new-learner")
+
+	if len(profile.DailyPlan) < 4 {
+		t.Fatalf("len(DailyPlan) = %d, want at least 4", len(profile.DailyPlan))
+	}
+	for _, suggestion := range profile.DailyPlan {
+		if suggestion.GlyphID == "" || suggestion.Character == "" || suggestion.Style == "" {
+			t.Fatalf("incomplete DailyPlan suggestion: %#v", suggestion)
+		}
+	}
 }
 
 func TestFileLearningStorePersistsProfile(t *testing.T) {

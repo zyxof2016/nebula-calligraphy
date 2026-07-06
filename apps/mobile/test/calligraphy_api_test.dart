@@ -165,4 +165,41 @@ void main() {
     expect(export.inlineEncoding, 'base64');
     expect(export.inlineContent, startsWith('iVBOR'));
   });
+
+  test('getLearningProfile decodes daily practice plan', () async {
+    final api = CalligraphyApi(
+      baseUrl: Uri.parse('http://calligraphy.test'),
+      client: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/api/v1/calligraphy/users/user-1/learning');
+        return http.Response(
+          jsonEncode({
+            'owner_user_id': 'user-1',
+            'favorites': [],
+            'recent_practice': [],
+            'daily_plan': [
+              {
+                'glyph_id': 'ou-common-永',
+                'character': '永',
+                'style': 'ou',
+                'copybook_id': 'common-practice-ou',
+                'title': '基础笔画代表字',
+                'reason': '巩固基础笔画和起收笔',
+              },
+            ],
+            'practice_count': 0,
+            'favorite_count': 0,
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    final profile = await api.getLearningProfile('user-1');
+
+    expect(profile.dailyPlan, hasLength(1));
+    expect(profile.dailyPlan.single.character, '永');
+    expect(profile.dailyPlan.single.reason, contains('基础笔画'));
+  });
 }

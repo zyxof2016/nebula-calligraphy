@@ -184,6 +184,7 @@ class FakeCalligraphyGateway implements CalligraphyGateway {
       ownerUserId: ownerUserId,
       favorites: const [],
       recentPractice: const [],
+      dailyPlan: const [],
       practiceCount: practiceCount,
       favoriteCount: 0,
     );
