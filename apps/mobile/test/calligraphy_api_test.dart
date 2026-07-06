@@ -187,6 +187,17 @@ void main() {
                 'reason': '巩固基础笔画和起收笔',
               },
             ],
+            'daily_steps': [
+              {
+                'step_id': 'copy_reference',
+                'title': '临摹今日字',
+                'description': '先看参考字形，再写 3 遍。',
+                'action_label': '开始临摹',
+                'target_glyph_id': 'ou-common-永',
+                'target_character': '永',
+                'completed': false,
+              },
+            ],
             'practice_count': 0,
             'favorite_count': 0,
           }),
@@ -201,5 +212,9 @@ void main() {
     expect(profile.dailyPlan, hasLength(1));
     expect(profile.dailyPlan.single.character, '永');
     expect(profile.dailyPlan.single.reason, contains('基础笔画'));
+    expect(profile.dailySteps, hasLength(1));
+    expect(profile.dailySteps.single.title, '临摹今日字');
+    expect(profile.dailySteps.single.targetCharacter, '永');
+    expect(profile.dailySteps.single.completed, isFalse);
   });
 }

@@ -282,11 +282,13 @@ func (s *LearningService) GetProfile(ownerUserID string) model.LearningProfile {
 	}
 	favorites := s.store.ListFavorites(ownerUserID)
 	practice := s.store.ListPractice(ownerUserID)
+	dailyPlan := s.buildDailyPlan(favorites, practice)
 	profile := model.LearningProfile{
 		OwnerUserID:    ownerUserID,
 		Favorites:      favorites,
 		RecentPractice: practice,
-		DailyPlan:      s.buildDailyPlan(favorites, practice),
+		DailyPlan:      dailyPlan,
+		DailySteps:     buildDailySteps(dailyPlan, practice),
 		PracticeCount:  len(practice),
 		FavoriteCount:  len(favorites),
 	}
@@ -294,6 +296,51 @@ func (s *LearningService) GetProfile(ownerUserID string) model.LearningProfile {
 		profile.LastPracticedAt = practice[0].CreatedAt
 	}
 	return profile
+}
+
+func buildDailySteps(plan []model.PracticeSuggestion, practice []model.PracticeRecord) []model.DailyPracticeStep {
+	targetGlyphID := ""
+	targetCharacter := ""
+	if len(plan) > 0 {
+		targetGlyphID = plan[0].GlyphID
+		targetCharacter = plan[0].Character
+	} else if len(practice) > 0 {
+		targetGlyphID = practice[0].GlyphID
+		targetCharacter = practice[0].Character
+	}
+	return []model.DailyPracticeStep{
+		{
+			StepID:          "copy_reference",
+			Title:           "临摹今日字",
+			Description:     "先看参考字形，再写 3 遍。",
+			ActionLabel:     "开始临摹",
+			TargetGlyphID:   targetGlyphID,
+			TargetCharacter: targetCharacter,
+			Completed:       len(practice) > 0,
+		},
+		{
+			StepID:          "inspect_structure",
+			Title:           "拆结构",
+			Description:     "看中宫、重心和主笔方向。",
+			ActionLabel:     "看结构",
+			TargetGlyphID:   targetGlyphID,
+			TargetCharacter: targetCharacter,
+		},
+		{
+			StepID:          "switch_grid",
+			Title:           "换格再写",
+			Description:     "从米字格切到九宫格，检查比例。",
+			ActionLabel:     "换格练",
+			TargetGlyphID:   targetGlyphID,
+			TargetCharacter: targetCharacter,
+		},
+		{
+			StepID:      "compose_phrase",
+			Title:       "入章法",
+			Description: "把今日字放进四字短句或斗方。",
+			ActionLabel: "去创作",
+		},
+	}
 }
 
 func (s *LearningService) buildDailyPlan(favorites []model.FavoriteGlyph, practice []model.PracticeRecord) []model.PracticeSuggestion {

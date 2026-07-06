@@ -184,6 +184,7 @@ type LearningProfile struct {
 	Favorites       []FavoriteGlyph      `json:"favorites"`
 	RecentPractice  []PracticeRecord     `json:"recent_practice"`
 	DailyPlan       []PracticeSuggestion `json:"daily_plan"`
+	DailySteps      []DailyPracticeStep  `json:"daily_steps"`
 	PracticeCount   int                  `json:"practice_count"`
 	FavoriteCount   int                  `json:"favorite_count"`
 	LastPracticedAt string               `json:"last_practiced_at,omitempty"`
@@ -196,6 +197,16 @@ type PracticeSuggestion struct {
 	CopybookID string `json:"copybook_id"`
 	Title      string `json:"title"`
 	Reason     string `json:"reason"`
+}
+
+type DailyPracticeStep struct {
+	StepID          string `json:"step_id"`
+	Title           string `json:"title"`
+	Description     string `json:"description"`
+	ActionLabel     string `json:"action_label"`
+	TargetGlyphID   string `json:"target_glyph_id,omitempty"`
+	TargetCharacter string `json:"target_character,omitempty"`
+	Completed       bool   `json:"completed"`
 }
 
 type AuthRequest struct {

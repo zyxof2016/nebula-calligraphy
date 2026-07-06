@@ -47,6 +47,7 @@
       "favorites": "收藏字列表，按最新优先排序。",
       "recent_practice": "近期练习记录，按最新优先排序。",
       "daily_plan": "服务端根据近期练习和收藏生成的每日推荐练习字。",
+      "daily_steps": "服务端生成的当日练习步骤，用于把临摹、结构观察、换格练习和章法应用串成闭环。",
       "practice_count": "MVP 存储保留的练习记录总数。",
       "favorite_count": "当前收藏字数量。",
       "last_practiced_at": "存在练习记录时的最近练习时间戳。"
@@ -60,6 +61,17 @@
       "copybook_id": "来源碑帖或兜底练习库标识。",
       "title": "推荐来源分组标题。",
       "reason": "面向学习者的推荐理由。"
+    }
+  },
+  "dailyPracticeStep": {
+    "fields": {
+      "step_id": "步骤标识，例如 copy_reference、inspect_structure、switch_grid 或 compose_phrase。",
+      "title": "面向学习者的步骤标题。",
+      "description": "步骤说明，描述该步要观察或练习什么。",
+      "action_label": "前端可展示的操作文案。",
+      "target_glyph_id": "该步骤绑定的推荐字形标识，可为空。",
+      "target_character": "该步骤绑定的推荐字符，可为空。",
+      "completed": "该步骤在当前学习档案中的完成状态。"
     }
   },
   "endpoints": {

@@ -9,6 +9,19 @@ import 'app_controller_test.dart';
 
 void main() {
   setUpAll(() async {
+    for (final candidate in [
+      '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+      '/tmp/calligraphy-test-fonts/extracted/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+    ]) {
+      final file = File(candidate);
+      if (await file.exists()) {
+        final uiFont = await file.readAsBytes();
+        final uiLoader = FontLoader('WenQuanYi Micro Hei')
+          ..addFont(Future.value(ByteData.sublistView(uiFont)));
+        await uiLoader.load();
+        break;
+      }
+    }
     final calligraphyFont = await File(
       '../../assets/fonts/MaShanZheng-Regular.ttf',
     ).readAsBytes();

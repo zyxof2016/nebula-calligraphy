@@ -69,6 +69,34 @@ func TestLearningServiceBuildsDailyPlanForNewLearner(t *testing.T) {
 			t.Fatalf("incomplete DailyPlan suggestion: %#v", suggestion)
 		}
 	}
+	if len(profile.DailySteps) != 4 {
+		t.Fatalf("len(DailySteps) = %d, want 4", len(profile.DailySteps))
+	}
+	if profile.DailySteps[0].Title != "临摹今日字" {
+		t.Fatalf("first step title = %q, want 临摹今日字", profile.DailySteps[0].Title)
+	}
+	if profile.DailySteps[0].TargetCharacter != profile.DailyPlan[0].Character {
+		t.Fatalf("first step target = %q, want %q", profile.DailySteps[0].TargetCharacter, profile.DailyPlan[0].Character)
+	}
+	if profile.DailySteps[0].Completed {
+		t.Fatal("first step completed for new learner, want false")
+	}
+}
+
+func TestLearningServiceMarksDailyCopyStepCompletedAfterPractice(t *testing.T) {
+	svc := NewLearningService(NewInMemoryLearningStore(), NewInMemoryGlyphCatalog())
+	if _, err := svc.RecordPractice("learner-1", model.CreatePracticeRecordRequest{GlyphID: "ou-common-永"}); err != nil {
+		t.Fatalf("RecordPractice() error = %v", err)
+	}
+
+	profile := svc.GetProfile("learner-1")
+
+	if len(profile.DailySteps) == 0 {
+		t.Fatal("DailySteps is empty")
+	}
+	if !profile.DailySteps[0].Completed {
+		t.Fatalf("first step completed = false, want true: %#v", profile.DailySteps[0])
+	}
 }
 
 func TestFileLearningStorePersistsProfile(t *testing.T) {

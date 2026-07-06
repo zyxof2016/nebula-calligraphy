@@ -184,7 +184,36 @@ class FakeCalligraphyGateway implements CalligraphyGateway {
       ownerUserId: ownerUserId,
       favorites: const [],
       recentPractice: const [],
-      dailyPlan: const [],
+      dailyPlan: const [
+        PracticeSuggestion(
+          glyphId: 'ou-common-永',
+          character: '永',
+          style: 'ou',
+          copybookId: 'common-practice-ou',
+          title: '基础笔画代表字',
+          reason: '巩固基础笔画和起收笔',
+        ),
+      ],
+      dailySteps: [
+        DailyPracticeStep(
+          stepId: 'copy_reference',
+          title: '临摹今日字',
+          description: '先看参考字形，再写 3 遍。',
+          actionLabel: '开始临摹',
+          targetGlyphId: 'ou-common-永',
+          targetCharacter: '永',
+          completed: practiceCount > 0,
+        ),
+        const DailyPracticeStep(
+          stepId: 'inspect_structure',
+          title: '拆结构',
+          description: '看中宫、重心和主笔方向。',
+          actionLabel: '看结构',
+          targetGlyphId: 'ou-common-永',
+          targetCharacter: '永',
+          completed: false,
+        ),
+      ],
       practiceCount: practiceCount,
       favoriteCount: 0,
     );

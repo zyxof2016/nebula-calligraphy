@@ -69,13 +69,12 @@ class _CalligraphyAppState extends State<CalligraphyApp> {
         ),
         scaffoldBackgroundColor: const Color(0xFFF7F4EB),
         useMaterial3: true,
+        fontFamily: 'WenQuanYi Micro Hei',
         fontFamilyFallback: const [
           'PingFang SC',
           'Microsoft YaHei',
+          'WenQuanYi Micro Hei',
           'Noto Sans CJK SC',
-          'Noto Serif CJK SC',
-          'KaiTi',
-          'STKaiti',
           'sans-serif',
         ],
         cardTheme: const CardThemeData(
@@ -390,6 +389,8 @@ class MobileDailyPracticePage extends StatelessWidget {
             onPractice: controller.recordSelectedGlyphPractice,
             feedback: controller.practiceFeedback,
             practiceCount: profile?.practiceCount ?? 0,
+            dailySteps: profile?.dailySteps ?? const [],
+            onSelectGlyph: controller.searchGlyphs,
             onChangeGlyph: controller.changePracticeGlyph,
             onOpenSearch: onOpenSearch,
             onOpenCreation: onOpenCreation,
@@ -489,6 +490,8 @@ class DesktopDailyPracticePage extends StatelessWidget {
                           onPractice: controller.recordSelectedGlyphPractice,
                           feedback: controller.practiceFeedback,
                           practiceCount: profile?.practiceCount ?? 0,
+                          dailySteps: profile?.dailySteps ?? const [],
+                          onSelectGlyph: controller.searchGlyphs,
                           onChangeGlyph: controller.changePracticeGlyph,
                           onOpenSearch: onOpenSearch,
                           onOpenCreation: onOpenCreation,
@@ -575,6 +578,133 @@ class DailyPracticeSidebar extends StatelessWidget {
                 CommonGlyphStrip(onSelectGlyph: onSelectGlyph),
               ],
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class DailyStepsCard extends StatelessWidget {
+  const DailyStepsCard({
+    super.key,
+    required this.steps,
+    required this.onSelectGlyph,
+    this.onOpenCreation,
+  });
+
+  final List<DailyPracticeStep> steps;
+  final ValueChanged<String> onSelectGlyph;
+  final VoidCallback? onOpenCreation;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F2E7),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE4D8C2)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('10分钟日课', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              '按顺序完成，先临摹再拆结构。',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            ...steps
+                .take(4)
+                .map(
+                  (step) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: DailyStepRow(
+                      step: step,
+                      onSelectGlyph: onSelectGlyph,
+                      onOpenCreation: onOpenCreation,
+                    ),
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class DailyStepRow extends StatelessWidget {
+  const DailyStepRow({
+    super.key,
+    required this.step,
+    required this.onSelectGlyph,
+    this.onOpenCreation,
+  });
+
+  final DailyPracticeStep step;
+  final ValueChanged<String> onSelectGlyph;
+  final VoidCallback? onOpenCreation;
+
+  @override
+  Widget build(BuildContext context) {
+    final canOpenGlyph = step.targetCharacter.isNotEmpty;
+    final isCreationStep = step.stepId == 'compose_phrase';
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          step.completed ? Icons.check_circle : Icons.radio_button_unchecked,
+          color: step.completed
+              ? const Color(0xFF1F7A57)
+              : const Color(0xFF9A8E76),
+          size: 22,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      step.title,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  if (step.completed)
+                    Text(
+                      '已完成',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: const Color(0xFF1F7A57),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(step.description, style: theme.textTheme.bodySmall),
+              if (canOpenGlyph || (isCreationStep && onOpenCreation != null))
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: isCreationStep && onOpenCreation != null
+                        ? onOpenCreation
+                        : () => onSelectGlyph(step.targetCharacter),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                    ),
+                    child: Text(step.actionLabel),
+                  ),
+                ),
+            ],
           ),
         ),
       ],
@@ -773,6 +903,8 @@ class PracticeReferencePanel extends StatefulWidget {
     required this.detail,
     required this.onPractice,
     required this.practiceCount,
+    required this.dailySteps,
+    required this.onSelectGlyph,
     required this.onChangeGlyph,
     required this.onOpenSearch,
     required this.onOpenCreation,
@@ -782,6 +914,8 @@ class PracticeReferencePanel extends StatefulWidget {
   final GlyphDetail detail;
   final VoidCallback onPractice;
   final int practiceCount;
+  final List<DailyPracticeStep> dailySteps;
+  final ValueChanged<String> onSelectGlyph;
   final VoidCallback onChangeGlyph;
   final VoidCallback onOpenSearch;
   final VoidCallback onOpenCreation;
@@ -811,6 +945,8 @@ class _PracticeReferencePanelState extends State<PracticeReferencePanel> {
               detail: detail,
               styleName: styleName,
               practiceCount: widget.practiceCount,
+              dailySteps: widget.dailySteps,
+              onSelectGlyph: widget.onSelectGlyph,
               feedback: widget.feedback,
               mode: _mode,
               compact: compact,
@@ -884,6 +1020,8 @@ class PracticeReferenceMeta extends StatelessWidget {
     required this.detail,
     required this.styleName,
     required this.practiceCount,
+    required this.dailySteps,
+    required this.onSelectGlyph,
     required this.mode,
     required this.compact,
     required this.onModeChanged,
@@ -897,6 +1035,8 @@ class PracticeReferenceMeta extends StatelessWidget {
   final GlyphDetail detail;
   final String styleName;
   final int practiceCount;
+  final List<DailyPracticeStep> dailySteps;
+  final ValueChanged<String> onSelectGlyph;
   final String mode;
   final bool compact;
   final ValueChanged<String> onModeChanged;
@@ -953,6 +1093,14 @@ class PracticeReferenceMeta extends StatelessWidget {
             label: const Text('我已临摹'),
           ),
         ),
+        if (dailySteps.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          DailyStepsCard(
+            steps: dailySteps,
+            onSelectGlyph: onSelectGlyph,
+            onOpenCreation: onOpenCreation,
+          ),
+        ],
         if (feedback != null) ...[
           const SizedBox(height: 10),
           DecoratedBox(

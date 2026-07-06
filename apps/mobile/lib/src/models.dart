@@ -508,6 +508,7 @@ class LearningProfile {
     required this.favorites,
     required this.recentPractice,
     required this.dailyPlan,
+    required this.dailySteps,
     required this.practiceCount,
     required this.favoriteCount,
     this.lastPracticedAt = '',
@@ -522,6 +523,7 @@ class LearningProfile {
         PracticeRecord.fromJson,
       ),
       dailyPlan: _objectList(json['daily_plan'], PracticeSuggestion.fromJson),
+      dailySteps: _objectList(json['daily_steps'], DailyPracticeStep.fromJson),
       practiceCount: _int(json['practice_count']),
       favoriteCount: _int(json['favorite_count']),
       lastPracticedAt: _string(json['last_practiced_at']),
@@ -532,6 +534,7 @@ class LearningProfile {
   final List<FavoriteGlyph> favorites;
   final List<PracticeRecord> recentPractice;
   final List<PracticeSuggestion> dailyPlan;
+  final List<DailyPracticeStep> dailySteps;
   final int practiceCount;
   final int favoriteCount;
   final String lastPracticedAt;
@@ -564,6 +567,38 @@ class PracticeSuggestion {
   final String copybookId;
   final String title;
   final String reason;
+}
+
+class DailyPracticeStep {
+  const DailyPracticeStep({
+    required this.stepId,
+    required this.title,
+    required this.description,
+    required this.actionLabel,
+    required this.targetGlyphId,
+    required this.targetCharacter,
+    required this.completed,
+  });
+
+  factory DailyPracticeStep.fromJson(Map<String, dynamic> json) {
+    return DailyPracticeStep(
+      stepId: _string(json['step_id']),
+      title: _string(json['title']),
+      description: _string(json['description']),
+      actionLabel: _string(json['action_label']),
+      targetGlyphId: _string(json['target_glyph_id']),
+      targetCharacter: _string(json['target_character']),
+      completed: json['completed'] == true,
+    );
+  }
+
+  final String stepId;
+  final String title;
+  final String description;
+  final String actionLabel;
+  final String targetGlyphId;
+  final String targetCharacter;
+  final bool completed;
 }
 
 class User {

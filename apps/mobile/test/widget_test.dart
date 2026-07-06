@@ -95,6 +95,28 @@ void main() {
     expect(find.text('今日已练 1 次'), findsOneWidget);
   });
 
+  testWidgets('daily page shows server guided practice steps', (
+    WidgetTester tester,
+  ) async {
+    final controller = CalligraphyController(
+      gateway: FakeCalligraphyGateway(),
+      apiBaseUrl: 'http://calligraphy.test',
+    );
+    await controller.login(username: 'learner', password: 'password123');
+
+    await tester.pumpWidget(CalligraphyApp(controller: controller));
+    await tester.pump();
+
+    expect(find.text('10分钟日课'), findsOneWidget);
+    expect(find.text('临摹今日字'), findsOneWidget);
+    expect(find.text('先看参考字形，再写 3 遍。'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, '我已临摹'));
+    await tester.pump();
+
+    expect(find.text('已完成'), findsOneWidget);
+  });
+
   testWidgets('shows a copybook reference glyph for practice', (
     WidgetTester tester,
   ) async {
@@ -133,6 +155,13 @@ void main() {
     await tester.pump();
 
     expect(find.text('永 · 欧体'), findsOneWidget);
+    expect(find.text('10分钟日课'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('展开笔画、结构和章法'),
+      260,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('展开笔画、结构和章法'), findsOneWidget);
     await tester.tap(find.text('展开笔画、结构和章法'));
     await tester.pumpAndSettle();
