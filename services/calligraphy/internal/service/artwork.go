@@ -2,6 +2,7 @@ package service
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -145,7 +146,7 @@ func (s *FileArtworkStore) persistLocked() error {
 }
 
 type ArtifactStore interface {
-	Save(export model.ExportRecord, content string) (string, error)
+	Save(export model.ExportRecord, content []byte) (string, error)
 }
 
 type LocalArtifactStore struct {
@@ -156,7 +157,7 @@ func NewLocalArtifactStore(dir string) *LocalArtifactStore {
 	return &LocalArtifactStore{dir: dir}
 }
 
-func (s *LocalArtifactStore) Save(export model.ExportRecord, content string) (string, error) {
+func (s *LocalArtifactStore) Save(export model.ExportRecord, content []byte) (string, error) {
 	if strings.TrimSpace(s.dir) == "" {
 		return "", errors.New("artifact directory is required")
 	}
@@ -168,7 +169,7 @@ func (s *LocalArtifactStore) Save(export model.ExportRecord, content string) (st
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", err
 	}
-	return key, os.WriteFile(path, []byte(content), 0o644)
+	return key, os.WriteFile(path, content, 0o644)
 }
 
 func NewInMemoryArtworkStore() *InMemoryArtworkStore {
@@ -232,6 +233,7 @@ type ArtworkService struct {
 	store         ArtworkStore
 	layout        *LayoutEngine
 	renderer      *SVGRenderer
+	pngRenderer   *ArtworkPNGRenderer
 	artifactStore ArtifactStore
 	now           func() time.Time
 }
@@ -245,8 +247,15 @@ func NewArtworkService(store ArtworkStore, layout *LayoutEngine, renderer *SVGRe
 		store:         store,
 		layout:        layout,
 		renderer:      renderer,
+		pngRenderer:   NewArtworkPNGRenderer(""),
 		artifactStore: artifacts,
 		now:           time.Now,
+	}
+}
+
+func (s *ArtworkService) SetPNGRenderer(renderer *ArtworkPNGRenderer) {
+	if renderer != nil {
+		s.pngRenderer = renderer
 	}
 }
 
@@ -297,28 +306,36 @@ func (s *ArtworkService) ExportDraft(artworkID string, req model.CreateExportReq
 	if req.Format == "" {
 		req.Format = "svg"
 	}
-	if req.Format != "svg" {
+	if req.Format != "svg" && req.Format != "png" {
 		return model.ExportRecord{}, fmt.Errorf("unsupported export format %q", req.Format)
 	}
 	if req.TemplateType == "" {
 		req.TemplateType = "reference"
 	}
 
-	content := s.renderer.Render(draft.Layout)
-	hash := sha256.Sum256([]byte(content))
+	content, contentType, inlineEncoding, err := s.renderExportContent(draft.Layout, req)
+	if err != nil {
+		return model.ExportRecord{}, err
+	}
+	hash := sha256.Sum256(content)
 	now := s.now().UTC().Format(time.RFC3339)
 	record := model.ExportRecord{
 		ExportID:     fmt.Sprintf("export-%06d", len(draft.Exports)+1),
 		ArtworkID:    draft.ArtworkID,
 		Format:       req.Format,
 		TemplateType: req.TemplateType,
-		ContentType:  "image/svg+xml",
+		ContentType:  contentType,
 		SHA256:       hex.EncodeToString(hash[:]),
-		ByteSize:     len([]byte(content)),
+		ByteSize:     len(content),
 		CreatedAt:    now,
 	}
 	if s.artifactStore == nil {
-		record.InlineContent = content
+		if inlineEncoding == "base64" {
+			record.InlineContent = base64.StdEncoding.EncodeToString(content)
+			record.InlineEncoding = inlineEncoding
+		} else {
+			record.InlineContent = string(content)
+		}
 	} else {
 		storageKey, err := s.artifactStore.Save(record, content)
 		if err != nil {
@@ -330,6 +347,21 @@ func (s *ArtworkService) ExportDraft(artworkID string, req model.CreateExportReq
 	draft.UpdatedAt = now
 	s.store.Update(draft)
 	return record, nil
+}
+
+func (s *ArtworkService) renderExportContent(layout model.LayoutResult, req model.CreateExportRequest) ([]byte, string, string, error) {
+	switch req.Format {
+	case "svg":
+		return []byte(s.renderer.Render(layout)), "image/svg+xml", "", nil
+	case "png":
+		content, err := s.pngRenderer.Render(layout)
+		if err != nil {
+			return nil, "", "", err
+		}
+		return content, "image/png", "base64", nil
+	default:
+		return nil, "", "", fmt.Errorf("unsupported export format %q", req.Format)
+	}
 }
 
 type SVGRenderer struct{}

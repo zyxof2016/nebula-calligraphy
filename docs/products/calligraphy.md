@@ -35,15 +35,15 @@ Nebula Calligraphy 是面向 C 端的 AI 书法学习与集字创作应用。它
 | `POST /api/v1/calligraphy/artworks/drafts` | 已实现 | 根据排版请求保存作品草稿；默认内存存储，配置后写入 JSON 文件 |
 | `GET /api/v1/calligraphy/artworks/drafts` | 已实现 | 查询认证用户的草稿列表；所属用户不匹配会被拒绝 |
 | `DELETE /api/v1/calligraphy/artworks/drafts/{id}` | 已实现 | 删除一个试用草稿 |
-| `POST /api/v1/calligraphy/artworks/drafts/{id}/exports` | 已实现 | 生成 SVG 参考导出并计算 SHA256；默认内联返回，配置后写入本地产物文件 |
+| `POST /api/v1/calligraphy/artworks/drafts/{id}/exports` | 已实现 | 生成 PNG 图片或 SVG 矢量参考导出并计算 SHA256；默认内联返回，配置后写入本地产物文件 |
 | `GET /api/v1/calligraphy/users/{id}/learning` | 已实现 | 返回收藏字、近期练习记录和学习统计 |
 | `POST /api/v1/calligraphy/users/{id}/favorites` | 已实现 | 将已发布字形收藏到学习者账号 |
 | `DELETE /api/v1/calligraphy/users/{id}/favorites/{glyph_id}` | 已实现 | 移除一个收藏字 |
 | `POST /api/v1/calligraphy/users/{id}/practice` | 已实现 | 记录一次单字练习动作，包含模板类型和格线类型 |
-| `GET /artifacts/{storage_key}` | 已实现 | 配置 `CALLIGRAPHY_EXPORT_DIR` 后提供本地 SVG 导出下载 |
-| 静态试用工作台 | 已实现 | 通过 `CALLIGRAPHY_WEB_DIR` 托管 `web/app`；支持本地注册/登录、常用字、查字/详情、练习模板预览/下载、收藏、练习记录、学习档案、章法预览、保存、列表、载入、删除、导出历史和 SVG 下载 |
+| `GET /artifacts/{storage_key}` | 已实现 | 配置 `CALLIGRAPHY_EXPORT_DIR` 后提供本地 PNG/SVG 导出下载 |
+| 静态试用工作台 | 已实现 | 通过 `CALLIGRAPHY_WEB_DIR` 托管 `web/app`；支持本地注册/登录、常用字、查字/详情、练习模板预览/下载、收藏、练习记录、学习档案、章法预览、保存、列表、载入、删除、导出历史和 PNG/SVG 下载 |
 
-该服务可将本地用户、草稿、学习记录、审计日志和 SVG 导出保存到本地文件，用于受控生产试用。用户草稿、收藏、练习和学习档案接口都要求 Bearer 令牌，并拒绝 所属用户不匹配的请求；连续登录失败会触发临时锁定。托管底座模式会在启动前校验 PostgreSQL、Identity、对象存储和审计接收端 配置，使用 PostgreSQL 保存用户/会话和学习资产，校验 Nebula Identity 兼容的 JWKS/RS256 或 HS256 Bearer 令牌，向浏览器暴露安全的运行时认证配置，托管 Web 登录优先使用 OIDC Authorization Code + PKCE，Nebula Identity 直连登录保留为兼容回退，并通过 S3 兼容对象存储写入导出产物。面向大规模商业生产仍需要授权碑帖入库，以及选定云服务的运维运行手册。
+该服务可将本地用户、草稿、学习记录、审计日志和 PNG/SVG 导出保存到本地文件，用于受控生产试用。用户草稿、收藏、练习和学习档案接口都要求 Bearer 令牌，并拒绝 所属用户不匹配的请求；连续登录失败会触发临时锁定。托管底座模式会在启动前校验 PostgreSQL、Identity、对象存储和审计接收端 配置，使用 PostgreSQL 保存用户/会话和学习资产，校验 Nebula Identity 兼容的 JWKS/RS256 或 HS256 Bearer 令牌，向浏览器暴露安全的运行时认证配置，托管 Web 登录优先使用 OIDC Authorization Code + PKCE，Nebula Identity 直连登录保留为兼容回退，并通过 S3 兼容对象存储写入导出产物。面向大规模商业生产仍需要授权碑帖入库，以及选定云服务的运维运行手册。
 
 ## 视觉和字体策略
 

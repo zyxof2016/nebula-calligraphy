@@ -1524,10 +1524,23 @@ class DraftsPage extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text('草稿 ID: ${draft.artworkId}'),
                   const SizedBox(height: 12),
-                  FilledButton.icon(
-                    onPressed: controller.exportCurrentDraft,
-                    icon: const Icon(Icons.ios_share),
-                    label: const Text('导出参考 SVG'),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: () =>
+                            controller.exportCurrentDraft(format: 'png'),
+                        icon: const Icon(Icons.image),
+                        label: const Text('导出 PNG 图片'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () =>
+                            controller.exportCurrentDraft(format: 'svg'),
+                        icon: const Icon(Icons.polyline),
+                        label: const Text('导出 SVG 矢量'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1552,6 +1565,10 @@ class DraftsPage extends StatelessWidget {
                   Text('格式: ${controller.lastExport!.format}'),
                   Text('大小: ${controller.lastExport!.byteSize} bytes'),
                   Text('SHA256: ${controller.lastExport!.sha256}'),
+                  if (controller.lastExport!.inlineEncoding.isNotEmpty)
+                    Text('内联编码: ${controller.lastExport!.inlineEncoding}'),
+                  if (controller.lastExport!.storageKey.isNotEmpty)
+                    Text('存储路径: ${controller.lastExport!.storageKey}'),
                 ],
               ),
             ),

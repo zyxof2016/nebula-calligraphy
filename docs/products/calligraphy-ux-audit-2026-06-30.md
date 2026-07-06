@@ -68,3 +68,11 @@
 1. 前端 Web 包不再内置 Ma Shan Zheng 或完整 CJK 字体，只保留图标字体。
 2. 服务端新增 `GET /api/v1/calligraphy/glyphs/{id}/render.png`，按需生成 512x512 PNG 字图，并给搜索、详情、章法 slot 返回 `render_asset`。
 3. 部署脚本写入 `CALLIGRAPHY_RENDER_FONT_FILE` 和 `CALLIGRAPHY_RENDER_CACHE_DIR`，字体资产只部署到服务端，后续自有字体库可直接替换。
+
+## 六次收口
+
+在真实字体库尚未制作完成的前提下，优先补齐不依赖字库的发布闭环：
+
+1. 作品草稿导出新增 PNG 图片格式，适合手机保存、预览和分享。
+2. SVG 矢量导出保留为次要操作，适合后续编辑和排版校验。
+3. PNG 内联导出使用 base64 标识，配置对象存储时仍通过 `storage_key` 分发产物。

@@ -1,6 +1,6 @@
 # Nebula Calligraphy Flutter 客户端
 
-这是书法 C 端应用的 Flutter 入口，面向手机、平板和 Web 试用场景。当前版本已接入 `services/calligraphy` API，覆盖登录/注册、查字、单字学习、集字章法、草稿保存和参考 SVG 导出主流程。
+这是书法 C 端应用的 Flutter 入口，面向手机、平板和 Web 试用场景。当前版本已接入 `services/calligraphy` API，覆盖登录/注册、查字、单字学习、集字章法、草稿保存和 PNG/SVG 导出主流程。
 
 ## 本地启动
 
@@ -33,7 +33,7 @@ CALLIGRAPHY_ALLOWED_ORIGINS=https://calligraphy.example
 - 单字详情展示，包括结构要点、笔法要点和临摹记录入口。
 - 集字创作表单，支持书体和幅式选择。
 - 章法预览画布，按后端返回坐标绘制竖排布局、落款和印章。
-- 保存作品草稿并导出参考 SVG。
+- 保存作品草稿并导出 PNG 图片或 SVG 矢量参考。
 
 ## 字体资产
 

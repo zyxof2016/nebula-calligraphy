@@ -39,7 +39,7 @@ func NewS3ArtifactStore(cfg S3ArtifactStoreConfig) *S3ArtifactStore {
 	}
 }
 
-func (s *S3ArtifactStore) Save(export model.ExportRecord, content string) (string, error) {
+func (s *S3ArtifactStore) Save(export model.ExportRecord, content []byte) (string, error) {
 	if strings.TrimSpace(s.cfg.Endpoint) == "" || strings.TrimSpace(s.cfg.Bucket) == "" {
 		return "", errors.New("s3 endpoint and bucket are required")
 	}
@@ -54,7 +54,7 @@ func (s *S3ArtifactStore) Save(export model.ExportRecord, content string) (strin
 	if err != nil {
 		return "", err
 	}
-	body := []byte(content)
+	body := content
 	req, err := http.NewRequest(http.MethodPut, endpoint.String(), bytes.NewReader(body))
 	if err != nil {
 		return "", err

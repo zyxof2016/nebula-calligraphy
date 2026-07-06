@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,6 +105,42 @@ func TestArtworkServiceExportsSVG(t *testing.T) {
 	}
 	if !strings.Contains(export.InlineContent, "<svg") || !strings.Contains(export.InlineContent, "山") {
 		t.Fatalf("InlineContent does not look like rendered SVG: %.80q", export.InlineContent)
+	}
+}
+
+func TestArtworkServiceExportsPNG(t *testing.T) {
+	artworks := NewArtworkService(NewInMemoryArtworkStore(), NewLayoutEngine(), NewSVGRenderer())
+	draft, err := artworks.CreateDraft(validDraftRequest("user-1", "山水清音"))
+	if err != nil {
+		t.Fatalf("CreateDraft() error = %v", err)
+	}
+
+	export, err := artworks.ExportDraft(draft.ArtworkID, model.CreateExportRequest{
+		Format:       "png",
+		TemplateType: "reference",
+	})
+	if err != nil {
+		t.Fatalf("ExportDraft(png) error = %v", err)
+	}
+
+	if export.Format != "png" {
+		t.Fatalf("Format = %q, want png", export.Format)
+	}
+	if export.ContentType != "image/png" {
+		t.Fatalf("ContentType = %q, want image/png", export.ContentType)
+	}
+	if export.InlineEncoding != "base64" {
+		t.Fatalf("InlineEncoding = %q, want base64", export.InlineEncoding)
+	}
+	content, err := base64.StdEncoding.DecodeString(export.InlineContent)
+	if err != nil {
+		t.Fatalf("DecodeString(InlineContent) error = %v", err)
+	}
+	if len(content) < 8 || string(content[:8]) != "\x89PNG\r\n\x1a\n" {
+		t.Fatalf("PNG signature = % x, want PNG", content[:min(8, len(content))])
+	}
+	if export.ByteSize != len(content) {
+		t.Fatalf("ByteSize = %d, want %d", export.ByteSize, len(content))
 	}
 }
 

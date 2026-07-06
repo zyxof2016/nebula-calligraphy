@@ -124,4 +124,45 @@ void main() {
     expect(result.slots.single.renderAsset.url, contains('/render.png'));
     expect(result.glyphSizeCm, 25);
   });
+
+  test('exportDraft decodes png export metadata', () async {
+    final api = CalligraphyApi(
+      baseUrl: Uri.parse('http://calligraphy.test'),
+      client: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(
+          request.url.path,
+          '/api/v1/calligraphy/artworks/drafts/artwork-1/exports',
+        );
+        final payload = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(payload['format'], 'png');
+        return http.Response(
+          jsonEncode({
+            'export_id': 'export-1',
+            'artwork_id': 'artwork-1',
+            'format': 'png',
+            'template_type': 'reference',
+            'content_type': 'image/png',
+            'sha256': 'abc123',
+            'byte_size': 12,
+            'inline_content': 'iVBORw0KGgo=',
+            'inline_encoding': 'base64',
+            'created_at': '2026-07-06T00:00:00Z',
+          }),
+          201,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    final export = await api.exportDraft(
+      artworkId: 'artwork-1',
+      format: 'png',
+      templateType: 'reference',
+    );
+
+    expect(export.contentType, 'image/png');
+    expect(export.inlineEncoding, 'base64');
+    expect(export.inlineContent, startsWith('iVBOR'));
+  });
 }

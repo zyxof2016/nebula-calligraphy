@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -279,6 +280,50 @@ func TestExportArtworkDraftSVG(t *testing.T) {
 	}
 	if !strings.Contains(export.InlineContent, "<svg") {
 		t.Fatalf("InlineContent does not contain svg: %.80q", export.InlineContent)
+	}
+}
+
+func TestExportArtworkDraftPNG(t *testing.T) {
+	router := newTestRouter()
+	session := registerTestSession(t, router, "learner-png")
+	body := []byte(`{"layout":{"text":"山水","paper":{"format":"doufang","width_cm":69,"height_cm":68}}}`)
+
+	createRec := httptest.NewRecorder()
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/artworks/drafts", bytes.NewReader(body))
+	addBearer(createReq, session.Token)
+	router.ServeHTTP(createRec, createReq)
+
+	var created model.ArtworkDraft
+	if err := json.Unmarshal(createRec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("json.Unmarshal(create) error = %v", err)
+	}
+
+	exportBody := []byte(`{"format":"png","template_type":"reference"}`)
+	exportRec := httptest.NewRecorder()
+	exportReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/artworks/drafts/"+created.ArtworkID+"/exports", bytes.NewReader(exportBody))
+	addBearer(exportReq, session.Token)
+	router.ServeHTTP(exportRec, exportReq)
+
+	if exportRec.Code != http.StatusCreated {
+		t.Fatalf("export status = %d, want 201: %s", exportRec.Code, exportRec.Body.String())
+	}
+
+	var export model.ExportRecord
+	if err := json.Unmarshal(exportRec.Body.Bytes(), &export); err != nil {
+		t.Fatalf("json.Unmarshal(export) error = %v", err)
+	}
+	if export.ContentType != "image/png" {
+		t.Fatalf("ContentType = %q, want image/png", export.ContentType)
+	}
+	if export.InlineEncoding != "base64" {
+		t.Fatalf("InlineEncoding = %q, want base64", export.InlineEncoding)
+	}
+	content, err := base64.StdEncoding.DecodeString(export.InlineContent)
+	if err != nil {
+		t.Fatalf("DecodeString(InlineContent) error = %v", err)
+	}
+	if len(content) < 8 || string(content[:8]) != "\x89PNG\r\n\x1a\n" {
+		t.Fatalf("PNG signature = % x, want PNG", content[:min(8, len(content))])
 	}
 }
 

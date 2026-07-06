@@ -170,10 +170,12 @@ func newRouter(cfg appConfig) (http.Handler, error) {
 		return nil, err
 	}
 	authService := service.NewAuthService(authStore)
+	artworkService := service.NewArtworkService(artworkStore, layout, service.NewSVGRenderer(), newArtifactStore(cfg))
+	artworkService.SetPNGRenderer(service.NewArtworkPNGRenderer(cfg.RenderFontFile))
 	calligraphyHandler := handler.New(
 		catalog,
 		layout,
-		service.NewArtworkService(artworkStore, layout, service.NewSVGRenderer(), newArtifactStore(cfg)),
+		artworkService,
 		service.NewLearningService(learningStore, catalog),
 		authService,
 		newAuditLogger(cfg),

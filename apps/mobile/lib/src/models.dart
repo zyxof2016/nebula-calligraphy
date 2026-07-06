@@ -406,6 +406,7 @@ class ExportRecord {
     required this.createdAt,
     this.storageKey = '',
     this.inlineContent = '',
+    this.inlineEncoding = '',
   });
 
   factory ExportRecord.fromJson(Map<String, dynamic> json) {
@@ -419,6 +420,7 @@ class ExportRecord {
       sha256: _string(json['sha256']),
       byteSize: _int(json['byte_size']),
       inlineContent: _string(json['inline_content']),
+      inlineEncoding: _string(json['inline_encoding']),
       createdAt: _string(json['created_at']),
     );
   }
@@ -432,6 +434,7 @@ class ExportRecord {
   final String sha256;
   final int byteSize;
   final String inlineContent;
+  final String inlineEncoding;
   final String createdAt;
 }
 

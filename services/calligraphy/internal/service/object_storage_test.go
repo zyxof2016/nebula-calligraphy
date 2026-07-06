@@ -40,7 +40,7 @@ func TestS3ArtifactStoreSavesExportWithSigV4(t *testing.T) {
 		ArtworkID: "artwork-000001",
 		ExportID:  "export-000001",
 		Format:    "svg",
-	}, "<svg></svg>")
+	}, []byte("<svg></svg>"))
 	if err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}

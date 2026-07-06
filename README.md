@@ -62,7 +62,7 @@ GOCACHE=/tmp/nebula-calligraphy-go-cache go test ./...
 PORT=8090 go run ./cmd/calligraphy
 ```
 
-如果需要可重启的本地试用环境，启用文件持久化草稿和本地 SVG 产物：
+如果需要可重启的本地试用环境，启用文件持久化草稿和本地导出产物：
 
 ```bash
 mkdir -p .local/artifacts
@@ -78,7 +78,7 @@ PORT=8090 \
 go run ./cmd/calligraphy
 ```
 
-然后打开 `http://127.0.0.1:8090/` 使用试用工作台。工作台覆盖本地注册/登录、常用字分组、查字、单字详情、练习模板预览/下载、收藏、练习记录、学习档案、章法预览、草稿保存/列表/载入/删除、导出历史以及 SVG 导出/下载。Flutter 客户端中文 UI 使用设备系统字体，书法参考字和章法预览优先加载服务端渲染 PNG；Web 包不再内置书法字体或完整 CJK 字体。
+然后打开 `http://127.0.0.1:8090/` 使用试用工作台。工作台覆盖本地注册/登录、常用字分组、查字、单字详情、练习模板预览/下载、收藏、练习记录、学习档案、章法预览、草稿保存/列表/载入/删除、导出历史以及 PNG/SVG 导出。Flutter 客户端中文 UI 使用设备系统字体，书法参考字和章法预览优先加载服务端渲染 PNG；Web 包不再内置书法字体或完整 CJK 字体。
 
 如需加载真实碑帖裁切字库，先校验 manifest，再通过环境变量接入：
 
@@ -124,7 +124,7 @@ Flutter Web 本地开发默认使用 `http://localhost:8088`，trial 模式会�
 | `GET /api/v1/calligraphy/artworks/drafts?owner_user_id=user-1` | 查询用户草稿列表 |
 | `GET /api/v1/calligraphy/artworks/drafts/{artwork_id}` | 读取单个草稿 |
 | `DELETE /api/v1/calligraphy/artworks/drafts/{artwork_id}` | 删除单个草稿 |
-| `POST /api/v1/calligraphy/artworks/drafts/{artwork_id}/exports` | 导出 MVP 内联 SVG 参考产物 |
+| `POST /api/v1/calligraphy/artworks/drafts/{artwork_id}/exports` | 导出 MVP 内联 PNG 图片或 SVG 矢量参考产物 |
 | `GET /api/v1/calligraphy/users/{owner_user_id}/learning` | 读取收藏字、近期练习和学习统计 |
 | `POST /api/v1/calligraphy/users/{owner_user_id}/favorites` | 收藏一个字形 |
 | `DELETE /api/v1/calligraphy/users/{owner_user_id}/favorites/{glyph_id}` | 移除一个收藏字 |
@@ -133,7 +133,7 @@ Flutter Web 本地开发默认使用 `http://localhost:8088`，trial 模式会�
 
 用户草稿、收藏、练习和学习档案接口都要求 `Authorization: Bearer <token>`。服务端会从会话推导有效所属用户，并拒绝 `owner_user_id` 不匹配的请求，返回 `403`。
 
-MVP 服务内置 120+ 个常用学习字，覆盖欧体、颜体、柳体、赵体和瘦金体五种书体。认证、草稿和学习记录默认存内存；配置 `CALLIGRAPHY_AUTH_FILE`、`CALLIGRAPHY_DATA_FILE` 和 `CALLIGRAPHY_LEARNING_FILE` 后会落到本地 JSON 文件；`CALLIGRAPHY_AUDIT_FILE` 写入 JSONL 审计事件；`CALLIGRAPHY_EXPORT_DIR` 写入 SVG 导出产物；`CALLIGRAPHY_WEB_DIR` 通过同一个 Go 服务托管静态试用工作台；`CALLIGRAPHY_GLYPH_MANIFEST_FILE` 加载真实碑帖范字 manifest；`CALLIGRAPHY_RENDER_FONT_FILE` 和 `CALLIGRAPHY_RENDER_CACHE_DIR` 控制服务端字图渲染。生产身份应接入 Nebula Identity 和 PostgreSQL 用户体系；公开商业生产还需要授权碑帖入库、专家审核发布流程、PostgreSQL 持久化和对象存储导出。
+MVP 服务内置 120+ 个常用学习字，覆盖欧体、颜体、柳体、赵体和瘦金体五种书体。认证、草稿和学习记录默认存内存；配置 `CALLIGRAPHY_AUTH_FILE`、`CALLIGRAPHY_DATA_FILE` 和 `CALLIGRAPHY_LEARNING_FILE` 后会落到本地 JSON 文件；`CALLIGRAPHY_AUDIT_FILE` 写入 JSONL 审计事件；`CALLIGRAPHY_EXPORT_DIR` 写入 PNG/SVG 导出产物；`CALLIGRAPHY_WEB_DIR` 通过同一个 Go 服务托管静态试用工作台；`CALLIGRAPHY_GLYPH_MANIFEST_FILE` 加载真实碑帖范字 manifest；`CALLIGRAPHY_RENDER_FONT_FILE` 和 `CALLIGRAPHY_RENDER_CACHE_DIR` 控制服务端字图渲染。生产身份应接入 Nebula Identity 和 PostgreSQL 用户体系；公开商业生产还需要授权碑帖入库、专家审核发布流程、PostgreSQL 持久化和对象存储导出。
 
 Go 服务默认设置保守的 HTTP 超时和安全响应头：`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy` 和 `Content-Security-Policy`。
 

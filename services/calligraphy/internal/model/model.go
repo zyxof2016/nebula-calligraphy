@@ -136,16 +136,17 @@ type CreateExportRequest struct {
 }
 
 type ExportRecord struct {
-	ExportID      string `json:"export_id"`
-	ArtworkID     string `json:"artwork_id"`
-	Format        string `json:"format"`
-	TemplateType  string `json:"template_type"`
-	ContentType   string `json:"content_type"`
-	StorageKey    string `json:"storage_key,omitempty"`
-	SHA256        string `json:"sha256"`
-	ByteSize      int    `json:"byte_size"`
-	InlineContent string `json:"inline_content,omitempty"`
-	CreatedAt     string `json:"created_at"`
+	ExportID       string `json:"export_id"`
+	ArtworkID      string `json:"artwork_id"`
+	Format         string `json:"format"`
+	TemplateType   string `json:"template_type"`
+	ContentType    string `json:"content_type"`
+	StorageKey     string `json:"storage_key,omitempty"`
+	SHA256         string `json:"sha256"`
+	ByteSize       int    `json:"byte_size"`
+	InlineContent  string `json:"inline_content,omitempty"`
+	InlineEncoding string `json:"inline_encoding,omitempty"`
+	CreatedAt      string `json:"created_at"`
 }
 
 type CreateFavoriteRequest struct {
