@@ -510,6 +510,7 @@ class LearningProfile {
     required this.dailyPlan,
     required this.dailySteps,
     required this.practiceCount,
+    required this.todayPracticeCount,
     required this.favoriteCount,
     this.lastPracticedAt = '',
   });
@@ -525,6 +526,7 @@ class LearningProfile {
       dailyPlan: _objectList(json['daily_plan'], PracticeSuggestion.fromJson),
       dailySteps: _objectList(json['daily_steps'], DailyPracticeStep.fromJson),
       practiceCount: _int(json['practice_count']),
+      todayPracticeCount: _int(json['today_practice_count']),
       favoriteCount: _int(json['favorite_count']),
       lastPracticedAt: _string(json['last_practiced_at']),
     );
@@ -536,6 +538,7 @@ class LearningProfile {
   final List<PracticeSuggestion> dailyPlan;
   final List<DailyPracticeStep> dailySteps;
   final int practiceCount;
+  final int todayPracticeCount;
   final int favoriteCount;
   final String lastPracticedAt;
 }

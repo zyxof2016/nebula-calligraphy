@@ -85,6 +85,7 @@ func TestLearningServiceBuildsDailyPlanForNewLearner(t *testing.T) {
 
 func TestLearningServiceMarksDailyCopyStepCompletedAfterPractice(t *testing.T) {
 	svc := NewLearningService(NewInMemoryLearningStore(), NewInMemoryGlyphCatalog())
+	svc.now = func() time.Time { return time.Date(2026, 7, 6, 8, 0, 0, 0, time.UTC) }
 	if _, err := svc.RecordPractice("learner-1", model.CreatePracticeRecordRequest{GlyphID: "ou-common-永"}); err != nil {
 		t.Fatalf("RecordPractice() error = %v", err)
 	}
@@ -96,6 +97,30 @@ func TestLearningServiceMarksDailyCopyStepCompletedAfterPractice(t *testing.T) {
 	}
 	if !profile.DailySteps[0].Completed {
 		t.Fatalf("first step completed = false, want true: %#v", profile.DailySteps[0])
+	}
+	if profile.TodayPracticeCount != 1 {
+		t.Fatalf("TodayPracticeCount = %d, want 1", profile.TodayPracticeCount)
+	}
+	if profile.DailySteps[0].TargetCharacter != "永" {
+		t.Fatalf("first step target = %q, want 永", profile.DailySteps[0].TargetCharacter)
+	}
+}
+
+func TestLearningServiceDailyStepsIgnoreYesterdayPractice(t *testing.T) {
+	svc := NewLearningService(NewInMemoryLearningStore(), NewInMemoryGlyphCatalog())
+	svc.now = func() time.Time { return time.Date(2026, 7, 5, 23, 0, 0, 0, time.UTC) }
+	if _, err := svc.RecordPractice("learner-1", model.CreatePracticeRecordRequest{GlyphID: "ou-common-永"}); err != nil {
+		t.Fatalf("RecordPractice(yesterday) error = %v", err)
+	}
+	svc.now = func() time.Time { return time.Date(2026, 7, 6, 8, 0, 0, 0, time.UTC) }
+
+	profile := svc.GetProfile("learner-1")
+
+	if profile.TodayPracticeCount != 0 {
+		t.Fatalf("TodayPracticeCount = %d, want 0", profile.TodayPracticeCount)
+	}
+	if profile.DailySteps[0].Completed {
+		t.Fatalf("first step completed = true for yesterday practice: %#v", profile.DailySteps[0])
 	}
 }
 

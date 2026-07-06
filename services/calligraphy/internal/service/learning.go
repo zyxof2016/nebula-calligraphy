@@ -282,15 +282,17 @@ func (s *LearningService) GetProfile(ownerUserID string) model.LearningProfile {
 	}
 	favorites := s.store.ListFavorites(ownerUserID)
 	practice := s.store.ListPractice(ownerUserID)
+	todayPractice := filterPracticeByUTCDate(practice, s.now().UTC())
 	dailyPlan := s.buildDailyPlan(favorites, practice)
 	profile := model.LearningProfile{
-		OwnerUserID:    ownerUserID,
-		Favorites:      favorites,
-		RecentPractice: practice,
-		DailyPlan:      dailyPlan,
-		DailySteps:     buildDailySteps(dailyPlan, practice),
-		PracticeCount:  len(practice),
-		FavoriteCount:  len(favorites),
+		OwnerUserID:        ownerUserID,
+		Favorites:          favorites,
+		RecentPractice:     practice,
+		DailyPlan:          dailyPlan,
+		DailySteps:         buildDailySteps(dailyPlan, todayPractice),
+		PracticeCount:      len(practice),
+		TodayPracticeCount: len(todayPractice),
+		FavoriteCount:      len(favorites),
 	}
 	if len(practice) > 0 {
 		profile.LastPracticedAt = practice[0].CreatedAt
@@ -298,15 +300,31 @@ func (s *LearningService) GetProfile(ownerUserID string) model.LearningProfile {
 	return profile
 }
 
-func buildDailySteps(plan []model.PracticeSuggestion, practice []model.PracticeRecord) []model.DailyPracticeStep {
+func filterPracticeByUTCDate(practice []model.PracticeRecord, day time.Time) []model.PracticeRecord {
+	year, month, date := day.Date()
+	items := make([]model.PracticeRecord, 0, len(practice))
+	for _, record := range practice {
+		createdAt, err := time.Parse(time.RFC3339, record.CreatedAt)
+		if err != nil {
+			continue
+		}
+		recordYear, recordMonth, recordDate := createdAt.UTC().Date()
+		if recordYear == year && recordMonth == month && recordDate == date {
+			items = append(items, record)
+		}
+	}
+	return items
+}
+
+func buildDailySteps(plan []model.PracticeSuggestion, todayPractice []model.PracticeRecord) []model.DailyPracticeStep {
 	targetGlyphID := ""
 	targetCharacter := ""
-	if len(plan) > 0 {
+	if len(todayPractice) > 0 {
+		targetGlyphID = todayPractice[0].GlyphID
+		targetCharacter = todayPractice[0].Character
+	} else if len(plan) > 0 {
 		targetGlyphID = plan[0].GlyphID
 		targetCharacter = plan[0].Character
-	} else if len(practice) > 0 {
-		targetGlyphID = practice[0].GlyphID
-		targetCharacter = practice[0].Character
 	}
 	return []model.DailyPracticeStep{
 		{
@@ -316,7 +334,7 @@ func buildDailySteps(plan []model.PracticeSuggestion, practice []model.PracticeR
 			ActionLabel:     "开始临摹",
 			TargetGlyphID:   targetGlyphID,
 			TargetCharacter: targetCharacter,
-			Completed:       len(practice) > 0,
+			Completed:       len(todayPractice) > 0,
 		},
 		{
 			StepID:          "inspect_structure",

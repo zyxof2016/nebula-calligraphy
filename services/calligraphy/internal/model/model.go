@@ -180,14 +180,15 @@ type PracticeRecord struct {
 }
 
 type LearningProfile struct {
-	OwnerUserID     string               `json:"owner_user_id"`
-	Favorites       []FavoriteGlyph      `json:"favorites"`
-	RecentPractice  []PracticeRecord     `json:"recent_practice"`
-	DailyPlan       []PracticeSuggestion `json:"daily_plan"`
-	DailySteps      []DailyPracticeStep  `json:"daily_steps"`
-	PracticeCount   int                  `json:"practice_count"`
-	FavoriteCount   int                  `json:"favorite_count"`
-	LastPracticedAt string               `json:"last_practiced_at,omitempty"`
+	OwnerUserID        string               `json:"owner_user_id"`
+	Favorites          []FavoriteGlyph      `json:"favorites"`
+	RecentPractice     []PracticeRecord     `json:"recent_practice"`
+	DailyPlan          []PracticeSuggestion `json:"daily_plan"`
+	DailySteps         []DailyPracticeStep  `json:"daily_steps"`
+	PracticeCount      int                  `json:"practice_count"`
+	TodayPracticeCount int                  `json:"today_practice_count"`
+	FavoriteCount      int                  `json:"favorite_count"`
+	LastPracticedAt    string               `json:"last_practiced_at,omitempty"`
 }
 
 type PracticeSuggestion struct {

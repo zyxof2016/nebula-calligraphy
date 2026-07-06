@@ -215,6 +215,7 @@ class FakeCalligraphyGateway implements CalligraphyGateway {
         ),
       ],
       practiceCount: practiceCount,
+      todayPracticeCount: practiceCount,
       favoriteCount: 0,
     );
   }

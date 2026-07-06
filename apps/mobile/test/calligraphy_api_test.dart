@@ -199,6 +199,7 @@ void main() {
               },
             ],
             'practice_count': 0,
+            'today_practice_count': 0,
             'favorite_count': 0,
           }),
           200,
@@ -216,5 +217,6 @@ void main() {
     expect(profile.dailySteps.single.title, '临摹今日字');
     expect(profile.dailySteps.single.targetCharacter, '永');
     expect(profile.dailySteps.single.completed, isFalse);
+    expect(profile.todayPracticeCount, 0);
   });
 }
