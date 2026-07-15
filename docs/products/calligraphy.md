@@ -65,6 +65,7 @@ Ma Shan Zheng 只是当前无授权碑帖裁切图时的服务端视觉兜底。
 - `CALLIGRAPHY_GLYPH_MANIFEST_FILE`：运行时加载 manifest 字库，优先于内置兜底字库。
 - `CALLIGRAPHY_RENDER_FONT_FILE`：服务端 PNG 字图渲染兜底字体路径。
 - `CALLIGRAPHY_RENDER_CACHE_DIR`：服务端字图渲染缓存目录。
+- `CALLIGRAPHY_LEARNING_TIMEZONE`：学习日课和“今日已练”的统计时区，默认 `Asia/Shanghai`。
 
 manifest 必须包含 `source_url`、`license_status`、`attribution`、`source_image` 和正数裁切框。只有 `review_status=published` 且非 `restricted` 的字会对外服务。AI 补字、部件合成字和人工重绘字后续必须单独标注，不能混入原碑裁切字。
 

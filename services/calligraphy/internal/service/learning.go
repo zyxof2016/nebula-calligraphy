@@ -212,13 +212,28 @@ func (s *FileLearningStore) persistLocked() error {
 }
 
 type LearningService struct {
-	store   LearningStore
-	catalog GlyphCatalog
-	now     func() time.Time
+	store    LearningStore
+	catalog  GlyphCatalog
+	now      func() time.Time
+	location *time.Location
 }
 
 func NewLearningService(store LearningStore, catalog GlyphCatalog) *LearningService {
-	return &LearningService{store: store, catalog: catalog, now: time.Now}
+	return &LearningService{store: store, catalog: catalog, now: time.Now, location: defaultLearningLocation()}
+}
+
+func (s *LearningService) SetLearningLocation(location *time.Location) {
+	if location != nil {
+		s.location = location
+	}
+}
+
+func defaultLearningLocation() *time.Location {
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return time.Local
+	}
+	return location
 }
 
 func (s *LearningService) AddFavorite(ownerUserID string, req model.CreateFavoriteRequest) (model.FavoriteGlyph, error) {
@@ -282,7 +297,7 @@ func (s *LearningService) GetProfile(ownerUserID string) model.LearningProfile {
 	}
 	favorites := s.store.ListFavorites(ownerUserID)
 	practice := s.store.ListPractice(ownerUserID)
-	todayPractice := filterPracticeByUTCDate(practice, s.now().UTC())
+	todayPractice := filterPracticeByDate(practice, s.now(), s.location)
 	dailyPlan := s.buildDailyPlan(favorites, practice)
 	profile := model.LearningProfile{
 		OwnerUserID:        ownerUserID,
@@ -300,15 +315,18 @@ func (s *LearningService) GetProfile(ownerUserID string) model.LearningProfile {
 	return profile
 }
 
-func filterPracticeByUTCDate(practice []model.PracticeRecord, day time.Time) []model.PracticeRecord {
-	year, month, date := day.Date()
+func filterPracticeByDate(practice []model.PracticeRecord, day time.Time, location *time.Location) []model.PracticeRecord {
+	if location == nil {
+		location = time.UTC
+	}
+	year, month, date := day.In(location).Date()
 	items := make([]model.PracticeRecord, 0, len(practice))
 	for _, record := range practice {
 		createdAt, err := time.Parse(time.RFC3339, record.CreatedAt)
 		if err != nil {
 			continue
 		}
-		recordYear, recordMonth, recordDate := createdAt.UTC().Date()
+		recordYear, recordMonth, recordDate := createdAt.In(location).Date()
 		if recordYear == year && recordMonth == month && recordDate == date {
 			items = append(items, record)
 		}

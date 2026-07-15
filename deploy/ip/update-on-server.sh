@@ -12,6 +12,7 @@ sudo tee /etc/systemd/system/nebula-calligraphy.service.d/20-render.conf >/dev/n
 [Service]
 Environment=CALLIGRAPHY_RENDER_FONT_FILE=$ROOT/assets/fonts/MaShanZheng-Regular.ttf
 Environment=CALLIGRAPHY_RENDER_CACHE_DIR=$ROOT/state/render-cache
+Environment=CALLIGRAPHY_LEARNING_TIMEZONE=Asia/Shanghai
 EOF
 sudo install -m 0644 deploy/calligraphy-ip.nginx.conf /etc/nginx/conf.d/calligraphy-ip.conf
 sudo nginx -t

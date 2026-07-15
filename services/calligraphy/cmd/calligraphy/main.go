@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -68,6 +69,7 @@ type appConfig struct {
 	GlyphManifestFile      string
 	RenderFontFile         string
 	RenderCacheDir         string
+	LearningTimezone       string
 	DatabaseURL            string
 	AuthMode               string
 	IdentityIssuer         string
@@ -110,6 +112,7 @@ func loadConfig() appConfig {
 		GlyphManifestFile:      os.Getenv("CALLIGRAPHY_GLYPH_MANIFEST_FILE"),
 		RenderFontFile:         os.Getenv("CALLIGRAPHY_RENDER_FONT_FILE"),
 		RenderCacheDir:         os.Getenv("CALLIGRAPHY_RENDER_CACHE_DIR"),
+		LearningTimezone:       os.Getenv("CALLIGRAPHY_LEARNING_TIMEZONE"),
 		DatabaseURL:            os.Getenv("CALLIGRAPHY_DATABASE_URL"),
 		AuthMode:               os.Getenv("CALLIGRAPHY_AUTH_MODE"),
 		IdentityIssuer:         os.Getenv("CALLIGRAPHY_IDENTITY_ISSUER"),
@@ -165,6 +168,10 @@ func newRouter(cfg appConfig) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	learningLocation, err := newLearningLocation(cfg)
+	if err != nil {
+		return nil, err
+	}
 	authStore, err := newAuthStore(cfg, postgresDB)
 	if err != nil {
 		return nil, err
@@ -172,11 +179,13 @@ func newRouter(cfg appConfig) (http.Handler, error) {
 	authService := service.NewAuthService(authStore)
 	artworkService := service.NewArtworkService(artworkStore, layout, service.NewSVGRenderer(), newArtifactStore(cfg))
 	artworkService.SetPNGRenderer(service.NewArtworkPNGRenderer(cfg.RenderFontFile))
+	learningService := service.NewLearningService(learningStore, catalog)
+	learningService.SetLearningLocation(learningLocation)
 	calligraphyHandler := handler.New(
 		catalog,
 		layout,
 		artworkService,
-		service.NewLearningService(learningStore, catalog),
+		learningService,
 		authService,
 		newAuditLogger(cfg),
 		newIdentityVerifier(cfg, authService),
@@ -205,6 +214,18 @@ func newGlyphCatalog(cfg appConfig) (service.GlyphCatalog, error) {
 		return nil, fmt.Errorf("load CALLIGRAPHY_GLYPH_MANIFEST_FILE: %w", err)
 	}
 	return service.NewCompositeGlyphCatalog(fileCatalog, fallback), nil
+}
+
+func newLearningLocation(cfg appConfig) (*time.Location, error) {
+	timezone := strings.TrimSpace(cfg.LearningTimezone)
+	if timezone == "" {
+		timezone = "Asia/Shanghai"
+	}
+	location, err := time.LoadLocation(timezone)
+	if err != nil {
+		return nil, fmt.Errorf("invalid CALLIGRAPHY_LEARNING_TIMEZONE %q: %w", timezone, err)
+	}
+	return location, nil
 }
 
 func validateConfig(cfg appConfig) error {

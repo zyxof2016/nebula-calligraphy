@@ -108,11 +108,11 @@ func TestLearningServiceMarksDailyCopyStepCompletedAfterPractice(t *testing.T) {
 
 func TestLearningServiceDailyStepsIgnoreYesterdayPractice(t *testing.T) {
 	svc := NewLearningService(NewInMemoryLearningStore(), NewInMemoryGlyphCatalog())
-	svc.now = func() time.Time { return time.Date(2026, 7, 5, 23, 0, 0, 0, time.UTC) }
+	svc.now = func() time.Time { return time.Date(2026, 7, 5, 14, 0, 0, 0, time.UTC) }
 	if _, err := svc.RecordPractice("learner-1", model.CreatePracticeRecordRequest{GlyphID: "ou-common-永"}); err != nil {
 		t.Fatalf("RecordPractice(yesterday) error = %v", err)
 	}
-	svc.now = func() time.Time { return time.Date(2026, 7, 6, 8, 0, 0, 0, time.UTC) }
+	svc.now = func() time.Time { return time.Date(2026, 7, 6, 1, 0, 0, 0, time.UTC) }
 
 	profile := svc.GetProfile("learner-1")
 
@@ -121,6 +121,29 @@ func TestLearningServiceDailyStepsIgnoreYesterdayPractice(t *testing.T) {
 	}
 	if profile.DailySteps[0].Completed {
 		t.Fatalf("first step completed = true for yesterday practice: %#v", profile.DailySteps[0])
+	}
+}
+
+func TestLearningServiceCountsTodayByConfiguredLocation(t *testing.T) {
+	shanghai, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatalf("LoadLocation() error = %v", err)
+	}
+	svc := NewLearningService(NewInMemoryLearningStore(), NewInMemoryGlyphCatalog())
+	svc.SetLearningLocation(shanghai)
+	svc.now = func() time.Time { return time.Date(2026, 7, 5, 16, 30, 0, 0, time.UTC) }
+	if _, err := svc.RecordPractice("learner-1", model.CreatePracticeRecordRequest{GlyphID: "ou-common-永"}); err != nil {
+		t.Fatalf("RecordPractice() error = %v", err)
+	}
+	svc.now = func() time.Time { return time.Date(2026, 7, 6, 1, 0, 0, 0, time.UTC) }
+
+	profile := svc.GetProfile("learner-1")
+
+	if profile.TodayPracticeCount != 1 {
+		t.Fatalf("TodayPracticeCount = %d, want 1", profile.TodayPracticeCount)
+	}
+	if !profile.DailySteps[0].Completed {
+		t.Fatalf("first step completed = false, want true: %#v", profile.DailySteps[0])
 	}
 }
 

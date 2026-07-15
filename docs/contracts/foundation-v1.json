@@ -42,6 +42,9 @@
     "auditAuth": [
       "CALLIGRAPHY_AUDIT_TOKEN"
     ],
+    "learning": [
+      "CALLIGRAPHY_LEARNING_TIMEZONE"
+    ],
     "webCors": [
       "CALLIGRAPHY_ALLOWED_ORIGINS"
     ]

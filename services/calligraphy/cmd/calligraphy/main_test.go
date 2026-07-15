@@ -132,6 +132,13 @@ func TestNewRouterRejectsInvalidGlyphManifest(t *testing.T) {
 	}
 }
 
+func TestNewRouterRejectsInvalidLearningTimezone(t *testing.T) {
+	_, err := newRouter(appConfig{LearningTimezone: "Mars/Base"})
+	if err == nil || !strings.Contains(err.Error(), "CALLIGRAPHY_LEARNING_TIMEZONE") {
+		t.Fatalf("newRouter(invalid timezone) error = %v, want timezone error", err)
+	}
+}
+
 func TestTrialRuntimeAllowsFlutterDevCorsOrigin(t *testing.T) {
 	router, err := newRouter(appConfig{})
 	if err != nil {
