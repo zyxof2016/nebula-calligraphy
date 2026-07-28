@@ -1,0 +1,50 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/zyxof2016/nebula-calligraphy
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+existingSecret: nebula-calligraphy
+
+config:
+  identityIssuer: https://identity.example.com
+  identityAudience: nebula-calligraphy
+  identityBaseUrl: https://identity.example.com
+  identityJwksUrl: https://identity.example.com/.well-known/jwks.json
+  identityClientId: nebula-calligraphy-web
+  authMode: nebula-direct
+  objectStorageEndpoint: https://s3.example.com
+  objectStorageBucket: nebula-calligraphy
+  objectStorageRegion: us-east-1
+  auditSink: https://audit.example.com/api/v1/events
+  allowedOrigins: https://calligraphy.example.com
+  learningTimezone: Asia/Shanghai
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: nginx
+  host: calligraphy.example.com
+  tlsSecretName: calligraphy-tls
+  annotations: {}
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

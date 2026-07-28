@@ -24,6 +24,37 @@ void main() {
     expect(gateway.lastSearchStyle, 'ou');
     expect(gateway.lastLayoutStyle, 'ou');
   });
+
+  test('initialize clears an expired persisted session', () async {
+    final gateway = FakeCalligraphyGateway();
+    final sessionStore = MemorySessionStore();
+    await sessionStore.save(
+      StoredSession(
+        apiBaseUrl: 'http://calligraphy.test',
+        token: 'expired-token',
+        expiresAt: DateTime.now()
+            .toUtc()
+            .subtract(const Duration(minutes: 1))
+            .toIso8601String(),
+        user: const User(
+          userId: 'user-1',
+          username: 'learner',
+          createdAt: 'now',
+        ),
+      ),
+    );
+    final controller = CalligraphyController(
+      gateway: gateway,
+      sessionStore: sessionStore,
+      apiBaseUrl: 'http://calligraphy.test',
+    );
+
+    await controller.initialize();
+
+    expect(controller.currentUser, isNull);
+    expect(gateway.bearerToken, isNull);
+    expect(await sessionStore.load(), isNull);
+  });
 }
 
 class FakeCalligraphyGateway implements CalligraphyGateway {
@@ -38,12 +69,25 @@ class FakeCalligraphyGateway implements CalligraphyGateway {
   }
 
   @override
+  Future<RuntimeConfig> getRuntimeConfig() async {
+    return const RuntimeConfig(
+      runtimeProfile: 'trial',
+      authMode: 'local',
+      identityLoginEndpoint: '',
+    );
+  }
+
+  @override
   Future<AuthSession> login({
     required String username,
     required String password,
   }) async {
     return AuthSession(
       token: 'session-token',
+      expiresAt: DateTime.now()
+          .toUtc()
+          .add(const Duration(hours: 1))
+          .toIso8601String(),
       user: User(userId: 'user-1', username: username, createdAt: 'now'),
     );
   }
@@ -55,6 +99,9 @@ class FakeCalligraphyGateway implements CalligraphyGateway {
   }) async {
     return login(username: username, password: password);
   }
+
+  @override
+  Future<void> logout() async {}
 
   @override
   Future<List<GlyphSummary>> searchGlyphs({

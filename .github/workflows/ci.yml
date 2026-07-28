@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/calligraphy/go.mod
+          cache-dependency-path: services/calligraphy/go.sum
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install deterministic CJK test font
+        run: sudo apt-get update && sudo apt-get install -y fonts-wqy-zenhei
+
+      - name: Validate contracts and scripts
+        run: make -f Makefile.split split-check
+
+      - name: Scan Go vulnerabilities
+        working-directory: services/calligraphy
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+
+      - name: Analyze and test Flutter
+        working-directory: apps/mobile
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: Build Flutter Web
+        working-directory: apps/mobile
+        run: flutter build web --release
+
+      - name: Build Android debug package
+        working-directory: apps/mobile
+        run: flutter build apk --debug
+
+      - name: Build container
+        run: docker build -f deploy/docker/Dockerfile -t nebula-calligraphy:ci .

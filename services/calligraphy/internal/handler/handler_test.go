@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +14,17 @@ import (
 	"github.com/nebula-platform/nebula/services/calligraphy/internal/model"
 	"github.com/nebula-platform/nebula/services/calligraphy/internal/service"
 )
+
+type switchableAuditLogger struct {
+	fail bool
+}
+
+func (l *switchableAuditLogger) Record(service.AuditEvent) error {
+	if l.fail {
+		return errors.New("audit unavailable")
+	}
+	return nil
+}
 
 func TestHealth(t *testing.T) {
 	router := newTestRouter()
@@ -243,6 +255,52 @@ func TestDeleteArtworkDraft(t *testing.T) {
 
 	if getRec.Code != http.StatusNotFound {
 		t.Fatalf("get deleted status = %d, want 404", getRec.Code)
+	}
+}
+
+func TestHighRiskArtworkDeleteFailsClosedWhenAuditUnavailable(t *testing.T) {
+	router := chi.NewRouter()
+	layout := service.NewLayoutEngine()
+	catalog := service.NewInMemoryGlyphCatalog()
+	audit := &switchableAuditLogger{}
+	RegisterRoutes(router, New(
+		catalog,
+		layout,
+		service.NewArtworkService(service.NewInMemoryArtworkStore(), layout, service.NewSVGRenderer()),
+		service.NewLearningService(service.NewInMemoryLearningStore(), catalog),
+		service.NewAuthService(service.NewInMemoryAuthStore()),
+		audit,
+	))
+	session := registerTestSession(t, router, "audit-owner")
+
+	createRec := httptest.NewRecorder()
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/artworks/drafts", bytes.NewReader([]byte(`{"layout":{"text":"山水","paper":{"format":"doufang","width_cm":69,"height_cm":68}}}`)))
+	addBearer(createReq, session.Token)
+	router.ServeHTTP(createRec, createReq)
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201: %s", createRec.Code, createRec.Body.String())
+	}
+	var draft model.ArtworkDraft
+	if err := json.Unmarshal(createRec.Body.Bytes(), &draft); err != nil {
+		t.Fatalf("Unmarshal(draft) error = %v", err)
+	}
+
+	audit.fail = true
+	deleteRec := httptest.NewRecorder()
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/v1/calligraphy/artworks/drafts/"+draft.ArtworkID, nil)
+	addBearer(deleteReq, session.Token)
+	router.ServeHTTP(deleteRec, deleteReq)
+	if deleteRec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("delete status = %d, want 503: %s", deleteRec.Code, deleteRec.Body.String())
+	}
+
+	audit.fail = false
+	getRec := httptest.NewRecorder()
+	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/calligraphy/artworks/drafts/"+draft.ArtworkID, nil)
+	addBearer(getReq, session.Token)
+	router.ServeHTTP(getRec, getReq)
+	if getRec.Code != http.StatusOK {
+		t.Fatalf("get after rejected delete status = %d, want 200", getRec.Code)
 	}
 }
 

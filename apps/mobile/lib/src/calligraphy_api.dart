@@ -7,6 +7,8 @@ import 'models.dart';
 abstract class CalligraphyGateway {
   void setBearerToken(String? token);
 
+  Future<RuntimeConfig> getRuntimeConfig();
+
   Future<AuthSession> login({
     required String username,
     required String password,
@@ -16,6 +18,8 @@ abstract class CalligraphyGateway {
     required String username,
     required String password,
   });
+
+  Future<void> logout();
 
   Future<List<GlyphSummary>> searchGlyphs({
     String? character,
@@ -67,6 +71,7 @@ class CalligraphyApi implements CalligraphyGateway {
   final Uri baseUrl;
   final http.Client _client;
   String? _bearerToken;
+  RuntimeConfig? _runtimeConfig;
 
   @override
   void setBearerToken(String? token) {
@@ -74,16 +79,92 @@ class CalligraphyApi implements CalligraphyGateway {
   }
 
   @override
+  Future<RuntimeConfig> getRuntimeConfig() async {
+    final config = RuntimeConfig.fromJson(
+      await _requestJson('GET', '/api/v1/calligraphy/runtime-config'),
+    );
+    _runtimeConfig = config;
+    return config;
+  }
+
+  @override
   Future<AuthSession> login({
     required String username,
     required String password,
   }) async {
+    final config = _runtimeConfig ?? await getRuntimeConfig();
+    if (config.authMode == 'nebula-direct') {
+      return _loginWithIdentity(config, username: username, password: password);
+    }
+    if (config.authMode != 'local') {
+      throw const ApiException(
+        400,
+        'interactive_login_required',
+        '当前部署要求使用 OIDC 登录入口',
+      );
+    }
     final json = await _requestJson(
       'POST',
       '/api/v1/calligraphy/auth/login',
       body: {'username': username, 'password': password},
     );
     return AuthSession.fromJson(json);
+  }
+
+  Future<AuthSession> _loginWithIdentity(
+    RuntimeConfig config, {
+    required String username,
+    required String password,
+  }) async {
+    if (config.identityLoginEndpoint.isEmpty) {
+      throw const ApiException(
+        503,
+        'identity_not_configured',
+        'Identity 登录端点未配置',
+      );
+    }
+    final response = await _client.post(
+      Uri.parse(config.identityLoginEndpoint),
+      headers: const {
+        'accept': 'application/json',
+        'content-type': 'application/json',
+      },
+      body: jsonEncode({'username': username, 'password': password}),
+    );
+    final payload = _decodeObject(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        response.statusCode,
+        payload['code']?.toString() ?? 'identity_login_failed',
+        payload['message']?.toString() ?? 'Identity 登录失败',
+      );
+    }
+    final data = payload['data'];
+    final nested = data is Map<String, dynamic>
+        ? data
+        : const <String, dynamic>{};
+    final token =
+        payload['access_token']?.toString() ??
+        payload['token']?.toString() ??
+        nested['access_token']?.toString() ??
+        nested['token']?.toString() ??
+        '';
+    if (token.isEmpty) {
+      throw const ApiException(
+        502,
+        'identity_token_missing',
+        'Identity 未返回访问令牌',
+      );
+    }
+    _bearerToken = token;
+    final user = User.fromJson(
+      await _requestJson('GET', '/api/v1/calligraphy/auth/me'),
+    );
+    return AuthSession(
+      token: token,
+      expiresAt: _jwtExpiresAt(token),
+      user: user,
+    );
   }
 
   @override
@@ -97,6 +178,11 @@ class CalligraphyApi implements CalligraphyGateway {
       body: {'username': username, 'password': password},
     );
     return AuthSession.fromJson(json);
+  }
+
+  @override
+  Future<void> logout() async {
+    await _requestJson('POST', '/api/v1/calligraphy/auth/logout');
   }
 
   @override
@@ -232,13 +318,13 @@ class CalligraphyApi implements CalligraphyGateway {
       _ => throw ArgumentError.value(method, 'method'),
     };
 
-    final decoded = response.body.isEmpty
-        ? <String, dynamic>{}
-        : jsonDecode(response.body) as Map<String, dynamic>;
+    final decoded = _decodeObject(response.body);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(
         response.statusCode,
-        decoded['error_code']?.toString() ?? 'http_error',
+        decoded['code']?.toString() ??
+            decoded['error_code']?.toString() ??
+            'http_error',
         decoded['message']?.toString() ?? '请求失败',
       );
     }
@@ -261,6 +347,43 @@ class CalligraphyApi implements CalligraphyGateway {
       path: '$basePath$path',
       queryParameters: filteredQuery.isEmpty ? null : filteredQuery,
     );
+  }
+}
+
+Map<String, dynamic> _decodeObject(String body) {
+  if (body.trim().isEmpty) {
+    return <String, dynamic>{};
+  }
+  try {
+    final decoded = jsonDecode(body);
+    return decoded is Map<String, dynamic>
+        ? decoded
+        : <String, dynamic>{'message': body};
+  } on FormatException {
+    return <String, dynamic>{'message': body};
+  }
+}
+
+String _jwtExpiresAt(String token) {
+  try {
+    final parts = token.split('.');
+    if (parts.length != 3) {
+      throw const FormatException('invalid JWT');
+    }
+    final claims =
+        jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))))
+            as Map<String, dynamic>;
+    final exp = claims['exp'];
+    final seconds = exp is num ? exp.toInt() : int.parse(exp.toString());
+    return DateTime.fromMillisecondsSinceEpoch(
+      seconds * 1000,
+      isUtc: true,
+    ).toIso8601String();
+  } catch (_) {
+    return DateTime.now()
+        .toUtc()
+        .add(const Duration(hours: 1))
+        .toIso8601String();
   }
 }
 

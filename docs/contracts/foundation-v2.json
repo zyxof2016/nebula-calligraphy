@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
-  "contract": "calligraphy.foundation.v1",
+  "schemaVersion": 2,
+  "contract": "calligraphy.foundation.v2",
   "description": "Nebula Calligraphy 部署的运行时底座形态和外部依赖契约。",
   "runtimeProfiles": {
     "trial": "默认本地开发形态。缺少持久化配置时回退到内存存储。",
@@ -18,6 +18,7 @@
   "managedRequiredEnv": [
     "CALLIGRAPHY_DATABASE_URL",
     "CALLIGRAPHY_IDENTITY_ISSUER",
+    "CALLIGRAPHY_IDENTITY_AUDIENCE",
     "CALLIGRAPHY_IDENTITY_BASE_URL",
     "CALLIGRAPHY_OBJECT_STORAGE_ENDPOINT",
     "CALLIGRAPHY_OBJECT_STORAGE_BUCKET",
@@ -42,15 +43,21 @@
     "auditAuth": [
       "CALLIGRAPHY_AUDIT_TOKEN"
     ],
+    "objectStorageTemporaryCredential": [
+      "CALLIGRAPHY_OBJECT_STORAGE_SESSION_TOKEN"
+    ],
     "learning": [
       "CALLIGRAPHY_LEARNING_TIMEZONE"
+    ],
+    "session": [
+      "CALLIGRAPHY_SESSION_TTL"
     ],
     "webCors": [
       "CALLIGRAPHY_ALLOWED_ORIGINS"
     ]
   },
   "operations": {
-    "GET /ready": "返回就绪状态和 foundation_mode。",
+    "GET /ready": "返回就绪状态、foundation_mode 和依赖组件状态；managed 模式实际检查 PostgreSQL 迁移、对象存储桶和 Identity JWKS。",
     "GET /metrics": "返回 Prometheus 文本指标，包含请求数和运行时长。",
     "GET /api/v1/calligraphy/runtime-config": "返回浏览器安全的运行时形态和 Identity 登录配置，不包含密钥。",
     "go run ./cmd/calligraphy-migrate": "应用托管模式需要的 PostgreSQL 表和索引。",
@@ -58,9 +65,9 @@
     "scripts/calligraphy-restore.sh": "恢复本地生产试用文件和产物目录。"
   },
   "managedAdapters": {
-    "identity": "使用 CALLIGRAPHY_IDENTITY_ISSUER 和 CALLIGRAPHY_IDENTITY_JWKS_URL 校验 JWKS/RS256 Bearer 令牌，或使用 CALLIGRAPHY_IDENTITY_HS256_SECRET 校验 Nebula HS256 令牌。浏览器登录优先通过 CALLIGRAPHY_IDENTITY_BASE_URL 和 CALLIGRAPHY_IDENTITY_CLIENT_ID 使用标准 oidc-pkce；nebula-direct 仅作为显式兼容回退。",
+    "identity": "使用 CALLIGRAPHY_IDENTITY_ISSUER、CALLIGRAPHY_IDENTITY_AUDIENCE 和 CALLIGRAPHY_IDENTITY_JWKS_URL 校验 JWKS/RS256 Bearer 令牌，或使用 CALLIGRAPHY_IDENTITY_HS256_SECRET 校验 Nebula HS256 令牌。必须校验 issuer、audience、exp 和 nbf。Flutter 客户端默认使用 nebula-direct；轻量 Web 客户端可在 Identity provider 端点齐备后显式使用 oidc-pkce。",
     "persistence": "PostgreSQL 存储本地用户/会话兼容数据、作品草稿、收藏和练习记录。",
-    "objectStorage": "使用 CALLIGRAPHY_OBJECT_STORAGE_* 配置的 S3 兼容 PutObject 产物存储。",
+    "objectStorage": "使用 CALLIGRAPHY_OBJECT_STORAGE_* 配置的 S3 兼容 PutObject 产物存储；云厂商临时凭证可附带并签名 CALLIGRAPHY_OBJECT_STORAGE_SESSION_TOKEN。",
     "audit": "使用 CALLIGRAPHY_AUDIT_SINK 和可选 CALLIGRAPHY_AUDIT_TOKEN 的 HTTP/HTTPS JSON 审计事件 POST 接收端。"
   }
 }

@@ -8,6 +8,7 @@ class StoredSession {
   const StoredSession({
     required this.apiBaseUrl,
     required this.token,
+    required this.expiresAt,
     required this.user,
   });
 
@@ -15,6 +16,7 @@ class StoredSession {
     return StoredSession(
       apiBaseUrl: json['api_base_url']?.toString() ?? '',
       token: json['token']?.toString() ?? '',
+      expiresAt: json['expires_at']?.toString() ?? '',
       user: User.fromJson(json['user'] as Map<String, dynamic>),
     );
   }
@@ -22,11 +24,13 @@ class StoredSession {
   Map<String, dynamic> toJson() => {
     'api_base_url': apiBaseUrl,
     'token': token,
+    'expires_at': expiresAt,
     'user': user.toJson(),
   };
 
   final String apiBaseUrl;
   final String token;
+  final String expiresAt;
   final User user;
 }
 

@@ -11,6 +11,7 @@ void main() {
   setUpAll(() async {
     for (final candidate in [
       '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+      '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
       '/tmp/calligraphy-test-fonts/extracted/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
     ]) {
       final file = File(candidate);

@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/base64"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,24 @@ import (
 
 	"github.com/nebula-platform/nebula/services/calligraphy/internal/model"
 )
+
+type failingArtworkStore struct{}
+
+func (failingArtworkStore) Create(model.ArtworkDraft) (model.ArtworkDraft, error) {
+	return model.ArtworkDraft{}, errors.New("database unavailable")
+}
+func (failingArtworkStore) Get(string) (model.ArtworkDraft, bool, error) {
+	return model.ArtworkDraft{}, false, errors.New("database unavailable")
+}
+func (failingArtworkStore) ListByOwner(string) ([]model.ArtworkDraft, error) {
+	return nil, errors.New("database unavailable")
+}
+func (failingArtworkStore) Update(model.ArtworkDraft) error {
+	return errors.New("database unavailable")
+}
+func (failingArtworkStore) Delete(string) (bool, error) {
+	return false, errors.New("database unavailable")
+}
 
 func TestArtworkServiceCreatesAndGetsDraft(t *testing.T) {
 	artworks := NewArtworkService(NewInMemoryArtworkStore(), NewLayoutEngine(), NewSVGRenderer())
@@ -28,7 +47,10 @@ func TestArtworkServiceCreatesAndGetsDraft(t *testing.T) {
 		t.Fatalf("CreateDraft() error = %v", err)
 	}
 
-	got, ok := artworks.GetDraft(draft.ArtworkID)
+	got, ok, err := artworks.GetDraft(draft.ArtworkID)
+	if err != nil {
+		t.Fatalf("GetDraft(%q) error = %v", draft.ArtworkID, err)
+	}
 	if !ok {
 		t.Fatalf("GetDraft(%q) not found", draft.ArtworkID)
 	}
@@ -52,7 +74,10 @@ func TestArtworkServiceListsDraftsByOwner(t *testing.T) {
 		t.Fatalf("CreateDraft(user-2) error = %v", err)
 	}
 
-	items := artworks.ListDrafts("user-1")
+	items, err := artworks.ListDrafts("user-1")
+	if err != nil {
+		t.Fatalf("ListDrafts(user-1) error = %v", err)
+	}
 	if len(items) != 1 {
 		t.Fatalf("len(ListDrafts(user-1)) = %d, want 1", len(items))
 	}
@@ -68,13 +93,17 @@ func TestArtworkServiceDeletesDraft(t *testing.T) {
 		t.Fatalf("CreateDraft() error = %v", err)
 	}
 
-	if ok := artworks.DeleteDraft(draft.ArtworkID); !ok {
+	ok, err := artworks.DeleteDraft(draft.ArtworkID)
+	if err != nil {
+		t.Fatalf("DeleteDraft() error = %v", err)
+	}
+	if !ok {
 		t.Fatal("DeleteDraft() = false, want true")
 	}
-	if _, ok := artworks.GetDraft(draft.ArtworkID); ok {
+	if _, ok, err := artworks.GetDraft(draft.ArtworkID); err != nil || ok {
 		t.Fatal("GetDraft() found deleted draft")
 	}
-	if ok := artworks.DeleteDraft(draft.ArtworkID); ok {
+	if ok, err := artworks.DeleteDraft(draft.ArtworkID); err != nil || ok {
 		t.Fatal("DeleteDraft() second call = true, want false")
 	}
 }
@@ -161,7 +190,10 @@ func TestFileArtworkStorePersistsDraftsAcrossInstances(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewFileArtworkStore(reload) error = %v", err)
 	}
-	reloaded, ok := reloadedStore.Get(draft.ArtworkID)
+	reloaded, ok, err := reloadedStore.Get(draft.ArtworkID)
+	if err != nil {
+		t.Fatalf("Get(%q) after reload error = %v", draft.ArtworkID, err)
+	}
 	if !ok {
 		t.Fatalf("Get(%q) after reload not found", draft.ArtworkID)
 	}
@@ -199,6 +231,17 @@ func TestArtworkServiceWritesExportToArtifactStore(t *testing.T) {
 	}
 	if !strings.Contains(string(content), "<svg") {
 		t.Fatalf("stored artifact does not contain svg: %.80q", string(content))
+	}
+}
+
+func TestArtworkServicePropagatesPersistenceFailure(t *testing.T) {
+	artworks := NewArtworkService(failingArtworkStore{}, NewLayoutEngine(), NewSVGRenderer())
+	_, err := artworks.CreateDraft(validDraftRequest("user-1", "山水"))
+	if !errors.Is(err, ErrPersistence) {
+		t.Fatalf("CreateDraft() error = %v, want persistence error", err)
+	}
+	if _, err := artworks.ListDrafts("user-1"); !errors.Is(err, ErrPersistence) {
+		t.Fatalf("ListDrafts() error = %v, want persistence error", err)
 	}
 }
 

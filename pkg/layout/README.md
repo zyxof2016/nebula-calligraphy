@@ -1,5 +1,7 @@
-# Layout Package
+# 章法排版包
 
-Shared layout algorithms should move here when more runtimes need them.
+多个运行时需要共享章法算法时，将公共实现迁移到这里。
 
-The MVP layout implementation currently lives in `services/calligraphy/internal/service` to keep the first API slice small and testable.
+当前可运行且有测试覆盖的章法实现位于
+`services/calligraphy/internal/service`，由 Go API 统一提供竖排、幅式、边距、
+落款和印章位置计算。

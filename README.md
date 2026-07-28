@@ -14,7 +14,7 @@ MVP 聚焦日常书法学习闭环：
 4. 标记练习并查看近期历史。
 5. 收藏常练字，便于重复学习。
 6. 将文本排版为书法作品草稿。
-7. 导出 SVG/PDF/PNG 学习模板。
+7. 导出 SVG/PNG 学习模板。
 
 暂缓范围：
 
@@ -35,7 +35,7 @@ nebula-calligraphy/
 ├── services/calligraphy/     # Go API 服务
 ├── pkg/layout/               # 章法排版算法
 ├── pkg/glyph/                # 字形匹配和元数据逻辑
-├── pkg/render/               # PDF/PNG/SVG 导出辅助
+├── pkg/render/               # 后续复用的 PNG/SVG 导出辅助
 ├── docs/products/            # 产品说明
 ├── docs/contracts/           # 机器可读契约
 └── scripts/
@@ -110,7 +110,7 @@ Flutter Web 本地开发默认使用 `http://localhost:8088`，trial 模式会�
 | 接口 | 用途 |
 |------|------|
 | `GET /health` | 服务健康探针 |
-| `GET /ready` | 就绪探针；生产配置会校验持久化配置 |
+| `GET /ready` | 就绪探针；托管模式实际检查 PostgreSQL 迁移、对象存储和 Identity |
 | `GET /metrics` | Prometheus 文本指标，包含进程运行时长和请求数 |
 | `POST /api/v1/calligraphy/auth/register` | 创建本地 MVP 学习者账号并返回会话 |
 | `POST /api/v1/calligraphy/auth/login` | 登录并返回本地会话 |
@@ -131,7 +131,7 @@ Flutter Web 本地开发默认使用 `http://localhost:8088`，trial 模式会�
 | `POST /api/v1/calligraphy/users/{owner_user_id}/practice` | 记录一次单字和模板练习 |
 | `GET /artifacts/{storage_key}` | 配置 `CALLIGRAPHY_EXPORT_DIR` 后下载本地试用导出产物 |
 
-用户草稿、收藏、练习和学习档案接口都要求 `Authorization: Bearer <token>`。服务端会从会话推导有效所属用户，并拒绝 `owner_user_id` 不匹配的请求，返回 `403`。
+用户草稿、收藏、练习和学习档案接口都要求 `Authorization: Bearer <token>`。服务端会从会话推导有效所属用户，并拒绝 `owner_user_id` 不匹配的请求，返回 `403`。本地密码使用 Argon2id 保存，本地会话默认 24 小时过期，可通过 `CALLIGRAPHY_SESSION_TTL` 调整。
 
 MVP 服务内置 120+ 个常用学习字，覆盖欧体、颜体、柳体、赵体和瘦金体五种书体。认证、草稿和学习记录默认存内存；配置 `CALLIGRAPHY_AUTH_FILE`、`CALLIGRAPHY_DATA_FILE` 和 `CALLIGRAPHY_LEARNING_FILE` 后会落到本地 JSON 文件；`CALLIGRAPHY_AUDIT_FILE` 写入 JSONL 审计事件；`CALLIGRAPHY_EXPORT_DIR` 写入 PNG/SVG 导出产物；`CALLIGRAPHY_WEB_DIR` 通过同一个 Go 服务托管静态试用工作台；`CALLIGRAPHY_GLYPH_MANIFEST_FILE` 加载真实碑帖范字 manifest；`CALLIGRAPHY_RENDER_FONT_FILE` 和 `CALLIGRAPHY_RENDER_CACHE_DIR` 控制服务端字图渲染。生产身份应接入 Nebula Identity 和 PostgreSQL 用户体系；公开商业生产还需要授权碑帖入库、专家审核发布流程、PostgreSQL 持久化和对象存储导出。
 
@@ -149,6 +149,8 @@ Go 服务默认设置保守的 HTTP 超时和安全响应头：`X-Content-Type-O
 - `CALLIGRAPHY_WEB_DIR`
 
 HTTPS 应在反向代理或负载均衡处终止，只把私有端口上的 HTTP 转发给 Go 进程。公网代理应设置 HSTS、请求体大小限制，并暴露 `/health` 和 `/ready` 给监控系统。
+生产试用模式的 `/ready` 会真实验证持久化目录可写、审计文件可追加以及 Web
+入口文件可读取，目录权限或磁盘写入故障会返回 `503`。
 
 ## 托管底座模式
 
@@ -158,6 +160,7 @@ HTTPS 应在反向代理或负载均衡处终止，只把私有端口上的 HTTP
 
 - `CALLIGRAPHY_DATABASE_URL`
 - `CALLIGRAPHY_IDENTITY_ISSUER`
+- `CALLIGRAPHY_IDENTITY_AUDIENCE`
 - `CALLIGRAPHY_IDENTITY_BASE_URL`
 - `CALLIGRAPHY_IDENTITY_JWKS_URL` 或 `CALLIGRAPHY_IDENTITY_HS256_SECRET`
 - `CALLIGRAPHY_OBJECT_STORAGE_ENDPOINT`
@@ -165,23 +168,24 @@ HTTPS 应在反向代理或负载均衡处终止，只把私有端口上的 HTTP
 - `CALLIGRAPHY_OBJECT_STORAGE_REGION`
 - `CALLIGRAPHY_OBJECT_STORAGE_ACCESS_KEY`
 - `CALLIGRAPHY_OBJECT_STORAGE_SECRET_KEY`
+- `CALLIGRAPHY_OBJECT_STORAGE_SESSION_TOKEN`（使用云厂商临时凭证时）
 - `CALLIGRAPHY_AUDIT_SINK`
 - `CALLIGRAPHY_WEB_DIR`
 
-托管模式使用 PostgreSQL 存储用户、会话、草稿、收藏和练习记录；使用 S3 兼容对象存储保存导出产物；使用 JWKS/RS256 或 Nebula HS256 校验 Identity 令牌；使用 HTTP/HTTPS 审计接收端接收 JSON 审计事件。如果审计服务要求 bearer 令牌，配置 `CALLIGRAPHY_AUDIT_TOKEN`。
+托管模式使用 PostgreSQL 存储用户、会话、草稿、收藏和练习记录；使用 S3 兼容对象存储保存导出产物；使用 JWKS/RS256 或 Nebula HS256 校验 Identity 令牌的签名、issuer、audience、exp 和 nbf；使用 HTTP/HTTPS 审计接收端接收 JSON 审计事件。如果审计服务要求 bearer 令牌，配置 `CALLIGRAPHY_AUDIT_TOKEN`。托管模式会关闭本地注册、登录和退出端点。
 
 浏览器登录由 `GET /api/v1/calligraphy/runtime-config` 驱动。该接口只返回公开配置，不返回校验密钥、对象存储凭据、数据库 URL 或审计令牌。
 
-支持的托管 Web 认证模式：
+支持的托管认证模式：
 
-- `CALLIGRAPHY_AUTH_MODE=oidc-pkce`：标准浏览器 SSO。配置 `CALLIGRAPHY_IDENTITY_CLIENT_ID`；授权端点和 token 端点默认是 `${CALLIGRAPHY_IDENTITY_BASE_URL}/api/v1/auth/authorize` 和 `${CALLIGRAPHY_IDENTITY_BASE_URL}/api/v1/auth/token`，也可用 `CALLIGRAPHY_IDENTITY_AUTHORIZATION_ENDPOINT` 和 `CALLIGRAPHY_IDENTITY_TOKEN_ENDPOINT` 覆盖。
-- `CALLIGRAPHY_AUTH_MODE=nebula-direct`：兼容回退模式。Web 应用把用户名和密码提交到 `CALLIGRAPHY_IDENTITY_LOGIN_ENDPOINT`，默认是 `${CALLIGRAPHY_IDENTITY_BASE_URL}/api/v1/auth/login`，然后使用返回的访问令牌调用 Calligraphy API。
+- `CALLIGRAPHY_AUTH_MODE=nebula-direct`：当前 Flutter Web、Android 和 iOS 客户端的默认托管模式。客户端通过 HTTPS 把用户名和密码提交到 `CALLIGRAPHY_IDENTITY_LOGIN_ENDPOINT`，默认是 `${CALLIGRAPHY_IDENTITY_BASE_URL}/api/v1/auth/login`，再使用访问令牌调用 Calligraphy API。
+- `CALLIGRAPHY_AUTH_MODE=oidc-pkce`：轻量 Web 客户端 `web/app` 已支持的标准浏览器 SSO。只有在 Identity 已提供标准 authorize/token 端点且部署入口使用该客户端时才显式启用。授权和 token 端点可分别用 `CALLIGRAPHY_IDENTITY_AUTHORIZATION_ENDPOINT`、`CALLIGRAPHY_IDENTITY_TOKEN_ENDPOINT` 覆盖。
 
-托管生产优先使用 `oidc-pkce`。如果未显式设置 `CALLIGRAPHY_AUTH_MODE`，且存在 `CALLIGRAPHY_IDENTITY_CLIENT_ID`，托管模式会自动使用 `oidc-pkce`；否则会回退到 `nebula-direct`，仅用于受控内部部署。服务 CSP 会自动只放行 Calligraphy 源和配置的 Identity 源。
+未显式设置 `CALLIGRAPHY_AUTH_MODE` 时，托管模式固定使用 `nebula-direct`，不会因存在 client ID 自动切换。Flutter 客户端收到 `oidc-pkce` 配置时会拒绝账号密码登录，避免错误地把凭据提交给 Calligraphy。服务 CSP 会自动只放行 Calligraphy 源和配置的 Identity 源。
 
 生产建议把 Calligraphy 和 Identity 放在同一个 HTTPS 网关源下。如果必须跨源部署，Identity 的 CORS 只能放行 Calligraphy 源。
 
-启用 `oidc-pkce` 前，Identity 必须以精确匹配方式登记 Calligraphy OIDC 公共客户端：
+轻量 Web 客户端启用 `oidc-pkce` 前，Identity 必须以精确匹配方式登记 Calligraphy OIDC 公共客户端：
 
 ```bash
 OIDC_ISSUER=https://identity.example.com
@@ -195,6 +199,7 @@ CORS_ORIGINS=https://calligraphy.example.com
 CALLIGRAPHY_AUTH_MODE=oidc-pkce
 CALLIGRAPHY_IDENTITY_BASE_URL=https://identity.example.com
 CALLIGRAPHY_IDENTITY_CLIENT_ID=nebula-calligraphy-web
+CALLIGRAPHY_IDENTITY_AUDIENCE=nebula-calligraphy
 ```
 
 启动托管模式前，先执行 PostgreSQL 迁移：
@@ -205,7 +210,18 @@ CALLIGRAPHY_DATABASE_URL=postgres://calligraphy:password@postgres:5432/calligrap
 go run ./cmd/calligraphy-migrate
 ```
 
-随后用上述托管配置启动服务。`/ready` 会返回 `foundation_mode=managed`。
+随后用上述托管配置启动服务。`/ready` 只有在 PostgreSQL 已迁移、对象存储桶可访问且 Identity JWKS 可读取时才返回 `200`。
+
+## 部署方式
+
+| 方式 | 入口 | 适用场景 |
+|------|------|----------|
+| 裸机 | `scripts/build-ip-release.sh`、`deploy/ip/` | 单台 2C4G Ubuntu 试用或小规模生产 |
+| Docker | `scripts/build-docker-image.sh`、`deploy/docker/compose.yaml` | 单机容器部署，无需外部镜像仓库 |
+| Kubernetes | `deploy/helm/nebula-calligraphy/` | 托管底座模式，外接 PostgreSQL、对象存储、Identity 和审计 |
+
+Android 正式包必须配置 `CALLIGRAPHY_ANDROID_KEYSTORE`、`CALLIGRAPHY_ANDROID_KEYSTORE_PASSWORD`、`CALLIGRAPHY_ANDROID_KEY_ALIAS` 和 `CALLIGRAPHY_ANDROID_KEY_PASSWORD`。release 构建不会回退到 debug 签名。
+Android 正式包禁用明文 HTTP；本地或 IP 联调请使用 debug 包，生产 Identity 和 Calligraphy 必须通过受信任的 HTTPS 地址提供。
 
 备份本地生产试用状态：
 

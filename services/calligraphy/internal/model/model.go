@@ -222,6 +222,7 @@ type User struct {
 }
 
 type AuthSession struct {
-	Token string `json:"token"`
-	User  User   `json:"user"`
+	Token     string `json:"token"`
+	ExpiresAt string `json:"expires_at"`
+	User      User   `json:"user"`
 }

@@ -19,11 +19,11 @@ import (
 )
 
 type ArtworkStore interface {
-	Create(draft model.ArtworkDraft) model.ArtworkDraft
-	Get(artworkID string) (model.ArtworkDraft, bool)
-	ListByOwner(ownerUserID string) []model.ArtworkDraft
-	Update(draft model.ArtworkDraft) model.ArtworkDraft
-	Delete(artworkID string) bool
+	Create(draft model.ArtworkDraft) (model.ArtworkDraft, error)
+	Get(artworkID string) (model.ArtworkDraft, bool, error)
+	ListByOwner(ownerUserID string) ([]model.ArtworkDraft, error)
+	Update(draft model.ArtworkDraft) error
+	Delete(artworkID string) (bool, error)
 }
 
 type InMemoryArtworkStore struct {
@@ -55,26 +55,31 @@ func NewFileArtworkStore(path string) (*FileArtworkStore, error) {
 	return store, nil
 }
 
-func (s *FileArtworkStore) Create(draft model.ArtworkDraft) model.ArtworkDraft {
+func (s *FileArtworkStore) Create(draft model.ArtworkDraft) (model.ArtworkDraft, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	previousNext := s.next
 	s.next++
 	draft.ArtworkID = fmt.Sprintf("artwork-%06d", s.next)
 	s.drafts[draft.ArtworkID] = draft
-	_ = s.persistLocked()
-	return draft
+	if err := s.persistLocked(); err != nil {
+		delete(s.drafts, draft.ArtworkID)
+		s.next = previousNext
+		return model.ArtworkDraft{}, err
+	}
+	return draft, nil
 }
 
-func (s *FileArtworkStore) Get(artworkID string) (model.ArtworkDraft, bool) {
+func (s *FileArtworkStore) Get(artworkID string) (model.ArtworkDraft, bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	draft, ok := s.drafts[artworkID]
-	return draft, ok
+	return draft, ok, nil
 }
 
-func (s *FileArtworkStore) ListByOwner(ownerUserID string) []model.ArtworkDraft {
+func (s *FileArtworkStore) ListByOwner(ownerUserID string) ([]model.ArtworkDraft, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -87,28 +92,40 @@ func (s *FileArtworkStore) ListByOwner(ownerUserID string) []model.ArtworkDraft 
 	sort.Slice(items, func(i, j int) bool {
 		return items[i].CreatedAt < items[j].CreatedAt
 	})
-	return items
+	return items, nil
 }
 
-func (s *FileArtworkStore) Update(draft model.ArtworkDraft) model.ArtworkDraft {
+func (s *FileArtworkStore) Update(draft model.ArtworkDraft) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	previous, existed := s.drafts[draft.ArtworkID]
 	s.drafts[draft.ArtworkID] = draft
-	_ = s.persistLocked()
-	return draft
+	if err := s.persistLocked(); err != nil {
+		if existed {
+			s.drafts[draft.ArtworkID] = previous
+		} else {
+			delete(s.drafts, draft.ArtworkID)
+		}
+		return err
+	}
+	return nil
 }
 
-func (s *FileArtworkStore) Delete(artworkID string) bool {
+func (s *FileArtworkStore) Delete(artworkID string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, ok := s.drafts[artworkID]; !ok {
-		return false
+	previous, ok := s.drafts[artworkID]
+	if !ok {
+		return false, nil
 	}
 	delete(s.drafts, artworkID)
-	_ = s.persistLocked()
-	return true
+	if err := s.persistLocked(); err != nil {
+		s.drafts[artworkID] = previous
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *FileArtworkStore) load() error {
@@ -176,25 +193,25 @@ func NewInMemoryArtworkStore() *InMemoryArtworkStore {
 	return &InMemoryArtworkStore{drafts: make(map[string]model.ArtworkDraft)}
 }
 
-func (s *InMemoryArtworkStore) Create(draft model.ArtworkDraft) model.ArtworkDraft {
+func (s *InMemoryArtworkStore) Create(draft model.ArtworkDraft) (model.ArtworkDraft, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.next++
 	draft.ArtworkID = fmt.Sprintf("artwork-%06d", s.next)
 	s.drafts[draft.ArtworkID] = draft
-	return draft
+	return draft, nil
 }
 
-func (s *InMemoryArtworkStore) Get(artworkID string) (model.ArtworkDraft, bool) {
+func (s *InMemoryArtworkStore) Get(artworkID string) (model.ArtworkDraft, bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	draft, ok := s.drafts[artworkID]
-	return draft, ok
+	return draft, ok, nil
 }
 
-func (s *InMemoryArtworkStore) ListByOwner(ownerUserID string) []model.ArtworkDraft {
+func (s *InMemoryArtworkStore) ListByOwner(ownerUserID string) ([]model.ArtworkDraft, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -207,26 +224,26 @@ func (s *InMemoryArtworkStore) ListByOwner(ownerUserID string) []model.ArtworkDr
 	sort.Slice(items, func(i, j int) bool {
 		return items[i].CreatedAt < items[j].CreatedAt
 	})
-	return items
+	return items, nil
 }
 
-func (s *InMemoryArtworkStore) Update(draft model.ArtworkDraft) model.ArtworkDraft {
+func (s *InMemoryArtworkStore) Update(draft model.ArtworkDraft) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.drafts[draft.ArtworkID] = draft
-	return draft
+	return nil
 }
 
-func (s *InMemoryArtworkStore) Delete(artworkID string) bool {
+func (s *InMemoryArtworkStore) Delete(artworkID string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if _, ok := s.drafts[artworkID]; !ok {
-		return false
+		return false, nil
 	}
 	delete(s.drafts, artworkID)
-	return true
+	return true, nil
 }
 
 type ArtworkService struct {
@@ -277,29 +294,48 @@ func (s *ArtworkService) CreateDraft(req model.CreateArtworkDraftRequest) (model
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
-	return s.store.Create(draft), nil
+	created, err := s.store.Create(draft)
+	if err != nil {
+		return model.ArtworkDraft{}, fmt.Errorf("%w: create artwork draft: %v", ErrPersistence, err)
+	}
+	return created, nil
 }
 
-func (s *ArtworkService) GetDraft(artworkID string) (model.ArtworkDraft, bool) {
-	return s.store.Get(artworkID)
+func (s *ArtworkService) GetDraft(artworkID string) (model.ArtworkDraft, bool, error) {
+	draft, ok, err := s.store.Get(artworkID)
+	if err != nil {
+		return model.ArtworkDraft{}, false, fmt.Errorf("%w: get artwork draft: %v", ErrPersistence, err)
+	}
+	return draft, ok, nil
 }
 
-func (s *ArtworkService) ListDrafts(ownerUserID string) []model.ArtworkDraft {
+func (s *ArtworkService) ListDrafts(ownerUserID string) ([]model.ArtworkDraft, error) {
 	if strings.TrimSpace(ownerUserID) == "" {
-		return nil
+		return nil, errors.New("owner_user_id is required")
 	}
-	return s.store.ListByOwner(ownerUserID)
+	items, err := s.store.ListByOwner(ownerUserID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: list artwork drafts: %v", ErrPersistence, err)
+	}
+	return items, nil
 }
 
-func (s *ArtworkService) DeleteDraft(artworkID string) bool {
+func (s *ArtworkService) DeleteDraft(artworkID string) (bool, error) {
 	if strings.TrimSpace(artworkID) == "" {
-		return false
+		return false, errors.New("artwork_id is required")
 	}
-	return s.store.Delete(artworkID)
+	deleted, err := s.store.Delete(artworkID)
+	if err != nil {
+		return false, fmt.Errorf("%w: delete artwork draft: %v", ErrPersistence, err)
+	}
+	return deleted, nil
 }
 
 func (s *ArtworkService) ExportDraft(artworkID string, req model.CreateExportRequest) (model.ExportRecord, error) {
-	draft, ok := s.store.Get(artworkID)
+	draft, ok, err := s.store.Get(artworkID)
+	if err != nil {
+		return model.ExportRecord{}, fmt.Errorf("%w: get artwork draft for export: %v", ErrPersistence, err)
+	}
 	if !ok {
 		return model.ExportRecord{}, errors.New("artwork draft not found")
 	}
@@ -339,13 +375,15 @@ func (s *ArtworkService) ExportDraft(artworkID string, req model.CreateExportReq
 	} else {
 		storageKey, err := s.artifactStore.Save(record, content)
 		if err != nil {
-			return model.ExportRecord{}, err
+			return model.ExportRecord{}, fmt.Errorf("%w: save artwork export: %v", ErrPersistence, err)
 		}
 		record.StorageKey = storageKey
 	}
 	draft.Exports = append(draft.Exports, record)
 	draft.UpdatedAt = now
-	s.store.Update(draft)
+	if err := s.store.Update(draft); err != nil {
+		return model.ExportRecord{}, fmt.Errorf("%w: update artwork export history: %v", ErrPersistence, err)
+	}
 	return record, nil
 }
 

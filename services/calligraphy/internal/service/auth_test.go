@@ -1,7 +1,9 @@
 package service
 
 import (
+	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,13 +23,16 @@ func TestAuthServiceRegisterLoginAndCurrentUser(t *testing.T) {
 	if session.Token != "session-token-1" {
 		t.Fatalf("Token = %q, want session-token-1", session.Token)
 	}
+	if session.ExpiresAt != "2026-06-26T09:00:00Z" {
+		t.Fatalf("ExpiresAt = %q, want 24 hour expiry", session.ExpiresAt)
+	}
 	if session.User.UserID == "" || session.User.Username != "learner" {
 		t.Fatalf("User = %#v, want normalized learner with id", session.User)
 	}
 
-	loaded, ok := svc.CurrentUser(session.Token)
-	if !ok {
-		t.Fatal("CurrentUser() ok = false, want true")
+	loaded, err := svc.CurrentUser(session.Token)
+	if err != nil {
+		t.Fatalf("CurrentUser() error = %v", err)
 	}
 	if loaded.UserID != session.User.UserID {
 		t.Fatalf("CurrentUser UserID = %q, want %q", loaded.UserID, session.User.UserID)
@@ -42,11 +47,45 @@ func TestAuthServiceRegisterLoginAndCurrentUser(t *testing.T) {
 		t.Fatalf("login token = %q, want session-token-2", login.Token)
 	}
 
-	if !svc.Logout(login.Token) {
+	loggedOut, err := svc.Logout(login.Token)
+	if err != nil {
+		t.Fatalf("Logout() error = %v", err)
+	}
+	if !loggedOut {
 		t.Fatal("Logout() = false, want true")
 	}
-	if _, ok := svc.CurrentUser(login.Token); ok {
-		t.Fatal("CurrentUser(logged out token) ok = true, want false")
+	if _, err := svc.CurrentUser(login.Token); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("CurrentUser(logged out token) error = %v, want unauthorized", err)
+	}
+}
+
+func TestAuthServiceExpiresSessionsAndUsesArgon2ID(t *testing.T) {
+	now := time.Date(2026, 7, 28, 10, 0, 0, 0, time.UTC)
+	store := NewInMemoryAuthStore()
+	svc := NewAuthService(store)
+	svc.now = func() time.Time { return now }
+	svc.SetSessionTTL(time.Hour)
+	svc.tokenSource = func() (string, error) { return "expiring-token", nil }
+	svc.saltSource = func() (string, error) { return "test-salt", nil }
+
+	session, err := svc.Register(model.AuthRequest{Username: "learner", Password: "secret123"})
+	if err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	stored, ok, err := store.FindUserByUsername("learner")
+	if err != nil || !ok || !strings.HasPrefix(stored.PasswordHash, "argon2id:") {
+		t.Fatalf("PasswordHash = %q, want argon2id encoding", stored.PasswordHash)
+	}
+	if _, err := svc.CurrentUser(session.Token); err != nil {
+		t.Fatalf("CurrentUser() before expiry error = %v", err)
+	}
+
+	now = now.Add(time.Hour)
+	if _, err := svc.CurrentUser(session.Token); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("CurrentUser() at expiry error = %v, want unauthorized", err)
+	}
+	if _, ok, err := store.FindSession(session.Token); err != nil || ok {
+		t.Fatal("expired session remains in store")
 	}
 }
 

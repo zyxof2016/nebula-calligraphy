@@ -1,4 +1,4 @@
-package com.nebula.calligraphy.nebula_calligraphy_app
+package com.nebula.calligraphy
 
 import io.flutter.embedding.android.FlutterActivity
 

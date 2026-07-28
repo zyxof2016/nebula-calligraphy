@@ -2,7 +2,6 @@ package service
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
@@ -10,25 +9,33 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/nebula-platform/nebula/services/calligraphy/internal/model"
+	"golang.org/x/crypto/argon2"
 )
 
-const passwordIterations = 120000
-const maxLoginFailures = 5
+const (
+	argonTime         = 3
+	argonMemory       = 64 * 1024
+	argonThreads      = 2
+	argonKeyLength    = 32
+	maxLoginFailures  = 5
+	defaultSessionTTL = 24 * time.Hour
+)
 
 var loginLockDuration = 15 * time.Minute
 
 type AuthStore interface {
 	CreateUser(user storedUser) (storedUser, error)
-	FindUserByUsername(username string) (storedUser, bool)
-	FindUserByID(userID string) (storedUser, bool)
-	SaveSession(token, userID string)
-	FindSession(token string) (string, bool)
-	DeleteSession(token string) bool
+	FindUserByUsername(username string) (storedUser, bool, error)
+	FindUserByID(userID string) (storedUser, bool, error)
+	SaveSession(token string, session storedSession) error
+	FindSession(token string) (storedSession, bool, error)
+	DeleteSession(token string) (bool, error)
 }
 
 type storedUser struct {
@@ -38,23 +45,28 @@ type storedUser struct {
 	CreatedAt    string `json:"created_at"`
 }
 
+type storedSession struct {
+	UserID    string `json:"user_id"`
+	ExpiresAt string `json:"expires_at"`
+}
+
 type authState struct {
-	NextUser int                   `json:"next_user"`
-	Users    map[string]storedUser `json:"users"`
-	Sessions map[string]string     `json:"sessions"`
+	NextUser int                      `json:"next_user"`
+	Users    map[string]storedUser    `json:"users"`
+	Sessions map[string]storedSession `json:"sessions"`
 }
 
 type InMemoryAuthStore struct {
 	mu       sync.RWMutex
 	nextUser int
 	users    map[string]storedUser
-	sessions map[string]string
+	sessions map[string]storedSession
 }
 
 func NewInMemoryAuthStore() *InMemoryAuthStore {
 	return &InMemoryAuthStore{
 		users:    make(map[string]storedUser),
-		sessions: make(map[string]string),
+		sessions: make(map[string]storedSession),
 	}
 }
 
@@ -71,50 +83,51 @@ func (s *InMemoryAuthStore) CreateUser(user storedUser) (storedUser, error) {
 	return user, nil
 }
 
-func (s *InMemoryAuthStore) FindUserByUsername(username string) (storedUser, bool) {
+func (s *InMemoryAuthStore) FindUserByUsername(username string) (storedUser, bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	user, ok := s.users[username]
-	return user, ok
+	return user, ok, nil
 }
 
-func (s *InMemoryAuthStore) FindUserByID(userID string) (storedUser, bool) {
+func (s *InMemoryAuthStore) FindUserByID(userID string) (storedUser, bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	for _, user := range s.users {
 		if user.UserID == userID {
-			return user, true
+			return user, true, nil
 		}
 	}
-	return storedUser{}, false
+	return storedUser{}, false, nil
 }
 
-func (s *InMemoryAuthStore) SaveSession(token, userID string) {
+func (s *InMemoryAuthStore) SaveSession(token string, session storedSession) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.sessions[token] = userID
+	s.sessions[token] = session
+	return nil
 }
 
-func (s *InMemoryAuthStore) FindSession(token string) (string, bool) {
+func (s *InMemoryAuthStore) FindSession(token string) (storedSession, bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	userID, ok := s.sessions[token]
-	return userID, ok
+	session, ok := s.sessions[token]
+	return session, ok, nil
 }
 
-func (s *InMemoryAuthStore) DeleteSession(token string) bool {
+func (s *InMemoryAuthStore) DeleteSession(token string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if _, ok := s.sessions[token]; !ok {
-		return false
+		return false, nil
 	}
 	delete(s.sessions, token)
-	return true
+	return true, nil
 }
 
 type FileAuthStore struct {
@@ -122,7 +135,7 @@ type FileAuthStore struct {
 	path     string
 	nextUser int
 	users    map[string]storedUser
-	sessions map[string]string
+	sessions map[string]storedSession
 }
 
 func NewFileAuthStore(path string) (*FileAuthStore, error) {
@@ -132,7 +145,7 @@ func NewFileAuthStore(path string) (*FileAuthStore, error) {
 	store := &FileAuthStore{
 		path:     path,
 		users:    make(map[string]storedUser),
-		sessions: make(map[string]string),
+		sessions: make(map[string]storedSession),
 	}
 	if err := store.load(); err != nil {
 		return nil, err
@@ -147,59 +160,77 @@ func (s *FileAuthStore) CreateUser(user storedUser) (storedUser, error) {
 	if _, ok := s.users[user.Username]; ok {
 		return storedUser{}, errors.New("username already exists")
 	}
+	previousNext := s.nextUser
 	s.nextUser++
 	user.UserID = fmt.Sprintf("user-%06d", s.nextUser)
 	s.users[user.Username] = user
-	_ = s.persistLocked()
+	if err := s.persistLocked(); err != nil {
+		delete(s.users, user.Username)
+		s.nextUser = previousNext
+		return storedUser{}, err
+	}
 	return user, nil
 }
 
-func (s *FileAuthStore) FindUserByUsername(username string) (storedUser, bool) {
+func (s *FileAuthStore) FindUserByUsername(username string) (storedUser, bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	user, ok := s.users[username]
-	return user, ok
+	return user, ok, nil
 }
 
-func (s *FileAuthStore) FindUserByID(userID string) (storedUser, bool) {
+func (s *FileAuthStore) FindUserByID(userID string) (storedUser, bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	for _, user := range s.users {
 		if user.UserID == userID {
-			return user, true
+			return user, true, nil
 		}
 	}
-	return storedUser{}, false
+	return storedUser{}, false, nil
 }
 
-func (s *FileAuthStore) SaveSession(token, userID string) {
+func (s *FileAuthStore) SaveSession(token string, session storedSession) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.sessions[token] = userID
-	_ = s.persistLocked()
+	previous, existed := s.sessions[token]
+	s.sessions[token] = session
+	if err := s.persistLocked(); err != nil {
+		if existed {
+			s.sessions[token] = previous
+		} else {
+			delete(s.sessions, token)
+		}
+		return err
+	}
+	return nil
 }
 
-func (s *FileAuthStore) FindSession(token string) (string, bool) {
+func (s *FileAuthStore) FindSession(token string) (storedSession, bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	userID, ok := s.sessions[token]
-	return userID, ok
+	session, ok := s.sessions[token]
+	return session, ok, nil
 }
 
-func (s *FileAuthStore) DeleteSession(token string) bool {
+func (s *FileAuthStore) DeleteSession(token string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, ok := s.sessions[token]; !ok {
-		return false
+	previous, ok := s.sessions[token]
+	if !ok {
+		return false, nil
 	}
 	delete(s.sessions, token)
-	_ = s.persistLocked()
-	return true
+	if err := s.persistLocked(); err != nil {
+		s.sessions[token] = previous
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *FileAuthStore) load() error {
@@ -246,6 +277,7 @@ type AuthService struct {
 	saltSource    func() (string, error)
 	guardMu       sync.Mutex
 	loginFailures map[string]loginFailureState
+	sessionTTL    time.Duration
 }
 
 type loginFailureState struct {
@@ -260,6 +292,13 @@ func NewAuthService(store AuthStore) *AuthService {
 		tokenSource:   randomHex,
 		saltSource:    randomHex,
 		loginFailures: make(map[string]loginFailureState),
+		sessionTTL:    defaultSessionTTL,
+	}
+}
+
+func (s *AuthService) SetSessionTTL(ttl time.Duration) {
+	if ttl > 0 {
+		s.sessionTTL = ttl
 	}
 }
 
@@ -268,7 +307,9 @@ func (s *AuthService) Register(req model.AuthRequest) (model.AuthSession, error)
 	if err != nil {
 		return model.AuthSession{}, err
 	}
-	if _, ok := s.store.FindUserByUsername(username); ok {
+	if _, ok, err := s.store.FindUserByUsername(username); err != nil {
+		return model.AuthSession{}, fmt.Errorf("%w: find user for registration: %v", ErrPersistence, err)
+	} else if ok {
 		return model.AuthSession{}, errors.New("username already exists")
 	}
 	salt, err := s.saltSource()
@@ -281,7 +322,7 @@ func (s *AuthService) Register(req model.AuthRequest) (model.AuthSession, error)
 		CreatedAt:    s.now().UTC().Format(time.RFC3339),
 	})
 	if err != nil {
-		return model.AuthSession{}, err
+		return model.AuthSession{}, fmt.Errorf("%w: create user: %v", ErrPersistence, err)
 	}
 	return s.createSession(user)
 }
@@ -294,7 +335,10 @@ func (s *AuthService) Login(req model.AuthRequest) (model.AuthSession, error) {
 	if s.isLoginLocked(username) {
 		return model.AuthSession{}, errors.New("login temporarily locked")
 	}
-	user, ok := s.store.FindUserByUsername(username)
+	user, ok, err := s.store.FindUserByUsername(username)
+	if err != nil {
+		return model.AuthSession{}, fmt.Errorf("%w: find user for login: %v", ErrPersistence, err)
+	}
 	if !ok || !verifyPassword(password, user.PasswordHash) {
 		s.recordLoginFailure(username)
 		return model.AuthSession{}, errors.New("invalid username or password")
@@ -303,22 +347,34 @@ func (s *AuthService) Login(req model.AuthRequest) (model.AuthSession, error) {
 	return s.createSession(user)
 }
 
-func (s *AuthService) CurrentUser(token string) (model.User, bool) {
-	userID, ok := s.store.FindSession(strings.TrimSpace(token))
-	if !ok {
-		return model.User{}, false
+func (s *AuthService) CurrentUser(token string) (model.User, error) {
+	token = strings.TrimSpace(token)
+	session, ok, err := s.store.FindSession(token)
+	if err != nil {
+		return model.User{}, fmt.Errorf("%w: find auth session: %v", ErrPersistence, err)
 	}
-	user, ok := s.store.FindUserByID(userID)
 	if !ok {
-		return model.User{}, false
+		return model.User{}, ErrUnauthorized
 	}
-	return publicUser(user), true
+	expiresAt, err := time.Parse(time.RFC3339, session.ExpiresAt)
+	if err != nil || !s.now().Before(expiresAt) {
+		_, _ = s.store.DeleteSession(token)
+		return model.User{}, ErrUnauthorized
+	}
+	user, ok, err := s.store.FindUserByID(session.UserID)
+	if err != nil {
+		return model.User{}, fmt.Errorf("%w: find current user: %v", ErrPersistence, err)
+	}
+	if !ok {
+		return model.User{}, ErrUnauthorized
+	}
+	return publicUser(user), nil
 }
 
-func (s *AuthService) Logout(token string) bool {
+func (s *AuthService) Logout(token string) (bool, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return false
+		return false, nil
 	}
 	return s.store.DeleteSession(token)
 }
@@ -328,8 +384,11 @@ func (s *AuthService) createSession(user storedUser) (model.AuthSession, error) 
 	if err != nil {
 		return model.AuthSession{}, err
 	}
-	s.store.SaveSession(token, user.UserID)
-	return model.AuthSession{Token: token, User: publicUser(user)}, nil
+	expiresAt := s.now().Add(s.sessionTTL).UTC().Format(time.RFC3339)
+	if err := s.store.SaveSession(token, storedSession{UserID: user.UserID, ExpiresAt: expiresAt}); err != nil {
+		return model.AuthSession{}, fmt.Errorf("%w: save auth session: %v", ErrPersistence, err)
+	}
+	return model.AuthSession{Token: token, ExpiresAt: expiresAt, User: publicUser(user)}, nil
 }
 
 func (s *AuthService) isLoginLocked(username string) bool {
@@ -391,31 +450,31 @@ func randomHex() (string, error) {
 }
 
 func encodePassword(password, salt string) string {
-	return fmt.Sprintf("sha256:%d:%s:%s", passwordIterations, salt, derivePassword(password, salt, passwordIterations))
+	hash := argon2.IDKey([]byte(password), []byte(salt), argonTime, argonMemory, argonThreads, argonKeyLength)
+	return fmt.Sprintf("argon2id:%d:%d:%d:%s:%s", argonTime, argonMemory, argonThreads, salt, hex.EncodeToString(hash))
 }
 
 func verifyPassword(password, encoded string) bool {
 	parts := strings.Split(encoded, ":")
-	if len(parts) != 4 || parts[0] != "sha256" {
+	if len(parts) != 6 || parts[0] != "argon2id" {
 		return false
 	}
-	expected := encodePasswordWithIterations(password, parts[2], parts[1])
-	return subtle.ConstantTimeCompare([]byte(expected), []byte(encoded)) == 1
-}
-
-func encodePasswordWithIterations(password, salt, iterations string) string {
-	var count int
-	_, _ = fmt.Sscanf(iterations, "%d", &count)
-	if count <= 0 {
-		count = passwordIterations
+	timeCost, err := strconv.ParseUint(parts[1], 10, 32)
+	if err != nil {
+		return false
 	}
-	return fmt.Sprintf("sha256:%d:%s:%s", count, salt, derivePassword(password, salt, count))
-}
-
-func derivePassword(password, salt string, iterations int) string {
-	sum := sha256.Sum256([]byte(salt + ":" + password))
-	for i := 1; i < iterations; i++ {
-		sum = sha256.Sum256(sum[:])
+	memoryCost, err := strconv.ParseUint(parts[2], 10, 32)
+	if err != nil {
+		return false
 	}
-	return hex.EncodeToString(sum[:])
+	threads, err := strconv.ParseUint(parts[3], 10, 8)
+	if err != nil || threads == 0 {
+		return false
+	}
+	expected, err := hex.DecodeString(parts[5])
+	if err != nil || len(expected) == 0 {
+		return false
+	}
+	actual := argon2.IDKey([]byte(password), []byte(parts[4]), uint32(timeCost), uint32(memoryCost), uint8(threads), uint32(len(expected)))
+	return subtle.ConstantTimeCompare(actual, expected) == 1
 }

@@ -60,12 +60,37 @@ class CalligraphyController extends ChangeNotifier {
   String selectedStyle = 'ou';
   PaperSpec selectedPaper = paperOptions[2];
   int _nextPracticeIndex = 0;
+  RuntimeConfig runtimeConfig = const RuntimeConfig(
+    runtimeProfile: 'trial',
+    authMode: 'local',
+    identityLoginEndpoint: '',
+  );
 
   bool get isAuthenticated => currentUser != null;
+  bool get supportsRegistration => runtimeConfig.authMode == 'local';
 
   Future<void> initialize() async {
+    try {
+      runtimeConfig = await gateway.getRuntimeConfig();
+    } catch (error) {
+      errorMessage = friendlyErrorMessage(error);
+    }
     final session = await _sessionStore.load();
     if (session == null) {
+      notifyListeners();
+      return;
+    }
+    if (session.apiBaseUrl != apiBaseUrl) {
+      await _sessionStore.clear();
+      notifyListeners();
+      return;
+    }
+    final expiresAt = DateTime.tryParse(session.expiresAt);
+    if (expiresAt == null ||
+        !DateTime.now().toUtc().isBefore(expiresAt.toUtc())) {
+      await _sessionStore.clear();
+      gateway.setBearerToken(null);
+      notifyListeners();
       return;
     }
     currentUser = session.user;
@@ -93,6 +118,11 @@ class CalligraphyController extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    try {
+      await gateway.logout();
+    } catch (_) {
+      // Local session removal must still succeed when the remote token is stale.
+    }
     await _sessionStore.clear();
     gateway.setBearerToken(null);
     currentUser = null;
@@ -206,6 +236,7 @@ class CalligraphyController extends ChangeNotifier {
         StoredSession(
           apiBaseUrl: apiBaseUrl,
           token: session.token,
+          expiresAt: session.expiresAt,
           user: session.user,
         ),
       );

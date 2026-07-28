@@ -1,5 +1,7 @@
-# Admin Console
+# 内容管理后台
 
-React + Ant Design content and annotation console for copybook ingestion, glyph review, expert publication, and licensing-sensitive operations.
+该模块用于承载碑帖入库、字形标注、专家审核发布和版权敏感操作的
+React + Ant Design 管理后台。
 
-This directory is intentionally not scaffolded with frontend code yet; create it after the backend publication workflow is defined.
+当前目录仅保留模块边界，尚未创建前端工程。应在字形发布工作流和管理端权限模型
+确定后再落地，不能以 C 端内置入口替代受控管理流程。

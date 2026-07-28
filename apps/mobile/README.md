@@ -19,6 +19,7 @@ flutter run -d web-server --web-hostname 0.0.0.0 --web-port 8088 --dart-define=C
 ```
 
 移动端真机或模拟器访问本机后端时，需要把 `CALLIGRAPHY_API_BASE_URL` 换成设备可访问的局域网地址。
+Web 正式构建不指定该参数时会自动使用页面当前源，因而同一产物可以放到裸机、Docker 或 Ingress 后面。
 
 trial 模式默认放行 `http://localhost:8088` 和 `http://127.0.0.1:8088`，方便 Flutter Web 调试。生产或托管环境如需跨源访问，应显式设置：
 
@@ -28,7 +29,8 @@ CALLIGRAPHY_ALLOWED_ORIGINS=https://calligraphy.example
 
 ## 已实现能力
 
-- 本地账号登录和注册，令牌会保存在本地会话存储中。
+- 本地账号登录和注册，令牌及过期时间会保存在本地会话存储中；客户端启动时会清理过期会话。
+- 托管环境支持 `nebula-direct` Identity 登录；请求必须走 HTTPS。当前 Flutter 客户端不会在 `oidc-pkce` 模式下接收账号密码。
 - 常用字速查和碑帖字形检索。
 - 单字详情展示，包括结构要点、笔法要点和临摹记录入口。
 - 集字创作表单，支持书体和幅式选择。
@@ -40,6 +42,7 @@ CALLIGRAPHY_ALLOWED_ORIGINS=https://calligraphy.example
 - UI 中文字体使用设备系统字体，不在 Web 包内捆绑完整 CJK 字体，避免首访下载 20MB+ 字体资产。
 - 书法参考字和章法预览优先使用服务端返回的 `render_asset.url` PNG 字图。前端不再打包书法字体。
 - 本地视觉测试会从仓库根目录 `assets/fonts/` 加载测试字体，保证无中文字体的 Linux 环境也能生成可读截图；该字体不进入 Flutter Web 产物。
+- Web、Android 和 iOS 使用 `assets/brand/calligraphy-app-icon-master.png` 派生的星云书法品牌图标，不再使用 Flutter 默认图标。
 
 ## 验证命令
 
@@ -49,6 +52,18 @@ flutter test
 flutter test test/visual_capture_test.dart --update-goldens
 flutter build web --dart-define=CALLIGRAPHY_API_BASE_URL=http://localhost:8090
 ```
+
+Android release 构建必须提供独立签名：
+
+```bash
+export CALLIGRAPHY_ANDROID_KEYSTORE=/secure/calligraphy.jks
+export CALLIGRAPHY_ANDROID_KEYSTORE_PASSWORD='...'
+export CALLIGRAPHY_ANDROID_KEY_ALIAS=calligraphy
+export CALLIGRAPHY_ANDROID_KEY_PASSWORD='...'
+flutter build appbundle --release
+```
+
+release 包禁用明文 HTTP，debug 包保留本机或 IP 联调能力。
 
 ## 目录说明
 

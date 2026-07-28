@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import 'src/app.dart';
 
 void main() {
-  const apiBaseUrl = String.fromEnvironment(
+  const configuredApiBaseUrl = String.fromEnvironment(
     'CALLIGRAPHY_API_BASE_URL',
-    defaultValue: 'http://localhost:8090',
   );
+  final apiBaseUrl = configuredApiBaseUrl.isNotEmpty
+      ? configuredApiBaseUrl
+      : kIsWeb
+      ? Uri.base.origin
+      : 'http://localhost:8090';
 
-  runApp(const CalligraphyApp(apiBaseUrl: apiBaseUrl));
+  runApp(CalligraphyApp(apiBaseUrl: apiBaseUrl));
 }

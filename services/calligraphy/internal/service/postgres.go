@@ -14,6 +14,11 @@ import (
 )
 
 const PostgresMigrationSQL = `
+CREATE TABLE IF NOT EXISTS calligraphy_schema_migrations (
+  version integer PRIMARY KEY,
+  applied_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE SEQUENCE IF NOT EXISTS calligraphy_user_seq;
 CREATE SEQUENCE IF NOT EXISTS calligraphy_artwork_seq;
 CREATE SEQUENCE IF NOT EXISTS calligraphy_practice_seq;
@@ -28,6 +33,7 @@ CREATE TABLE IF NOT EXISTS calligraphy_auth_users (
 CREATE TABLE IF NOT EXISTS calligraphy_auth_sessions (
   token text PRIMARY KEY,
   user_id text NOT NULL REFERENCES calligraphy_auth_users(user_id) ON DELETE CASCADE,
+  expires_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -57,6 +63,8 @@ CREATE TABLE IF NOT EXISTS calligraphy_learning_practice (
 );
 
 CREATE INDEX IF NOT EXISTS idx_calligraphy_practice_owner ON calligraphy_learning_practice(owner_user_id);
+
+INSERT INTO calligraphy_schema_migrations(version) VALUES(2) ON CONFLICT(version) DO NOTHING;
 `
 
 func OpenPostgres(databaseURL string) (*sql.DB, error) {
@@ -74,8 +82,15 @@ func OpenPostgres(databaseURL string) (*sql.DB, error) {
 }
 
 func MigratePostgres(db *sql.DB) error {
-	_, err := db.Exec(PostgresMigrationSQL)
-	return err
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(PostgresMigrationSQL); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
 }
 
 type PostgresAuthStore struct {
@@ -99,42 +114,57 @@ func (s *PostgresAuthStore) CreateUser(user storedUser) (storedUser, error) {
 	return user, err
 }
 
-func (s *PostgresAuthStore) FindUserByUsername(username string) (storedUser, bool) {
+func (s *PostgresAuthStore) FindUserByUsername(username string) (storedUser, bool, error) {
 	return s.findUser("username", username)
 }
 
-func (s *PostgresAuthStore) FindUserByID(userID string) (storedUser, bool) {
+func (s *PostgresAuthStore) FindUserByID(userID string) (storedUser, bool, error) {
 	return s.findUser("user_id", userID)
 }
 
-func (s *PostgresAuthStore) findUser(column, value string) (storedUser, bool) {
+func (s *PostgresAuthStore) findUser(column, value string) (storedUser, bool, error) {
 	query := fmt.Sprintf("SELECT user_id, username, password_hash, created_at::text FROM calligraphy_auth_users WHERE %s=$1", column)
 	var user storedUser
 	if err := s.db.QueryRow(query, value).Scan(&user.UserID, &user.Username, &user.PasswordHash, &user.CreatedAt); err != nil {
-		return storedUser{}, false
+		if errors.Is(err, sql.ErrNoRows) {
+			return storedUser{}, false, nil
+		}
+		return storedUser{}, false, err
 	}
-	return user, true
+	return user, true, nil
 }
 
-func (s *PostgresAuthStore) SaveSession(token, userID string) {
-	_, _ = s.db.Exec("INSERT INTO calligraphy_auth_sessions(token, user_id) VALUES($1,$2) ON CONFLICT(token) DO UPDATE SET user_id=excluded.user_id", token, userID)
+func (s *PostgresAuthStore) SaveSession(token string, session storedSession) error {
+	_, err := s.db.Exec(
+		`INSERT INTO calligraphy_auth_sessions(token, user_id, expires_at)
+		 VALUES($1,$2,$3)
+		 ON CONFLICT(token) DO UPDATE SET user_id=excluded.user_id, expires_at=excluded.expires_at`,
+		token, session.UserID, session.ExpiresAt,
+	)
+	return err
 }
 
-func (s *PostgresAuthStore) FindSession(token string) (string, bool) {
-	var userID string
-	if err := s.db.QueryRow("SELECT user_id FROM calligraphy_auth_sessions WHERE token=$1", token).Scan(&userID); err != nil {
-		return "", false
+func (s *PostgresAuthStore) FindSession(token string) (storedSession, bool, error) {
+	var session storedSession
+	if err := s.db.QueryRow(
+		"SELECT user_id, expires_at::text FROM calligraphy_auth_sessions WHERE token=$1",
+		token,
+	).Scan(&session.UserID, &session.ExpiresAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return storedSession{}, false, nil
+		}
+		return storedSession{}, false, err
 	}
-	return userID, true
+	return session, true, nil
 }
 
-func (s *PostgresAuthStore) DeleteSession(token string) bool {
+func (s *PostgresAuthStore) DeleteSession(token string) (bool, error) {
 	result, err := s.db.Exec("DELETE FROM calligraphy_auth_sessions WHERE token=$1", token)
 	if err != nil {
-		return false
+		return false, err
 	}
-	affected, _ := result.RowsAffected()
-	return affected > 0
+	affected, err := result.RowsAffected()
+	return affected > 0, err
 }
 
 type PostgresArtworkStore struct {
@@ -145,58 +175,65 @@ func NewPostgresArtworkStore(db *sql.DB) *PostgresArtworkStore {
 	return &PostgresArtworkStore{db: db}
 }
 
-func (s *PostgresArtworkStore) Create(draft model.ArtworkDraft) model.ArtworkDraft {
+func (s *PostgresArtworkStore) Create(draft model.ArtworkDraft) (model.ArtworkDraft, error) {
 	if draft.ArtworkID == "" {
-		_ = s.db.QueryRow("SELECT 'artwork-' || lpad(nextval('calligraphy_artwork_seq')::text, 6, '0')").Scan(&draft.ArtworkID)
+		if err := s.db.QueryRow("SELECT 'artwork-' || lpad(nextval('calligraphy_artwork_seq')::text, 6, '0')").Scan(&draft.ArtworkID); err != nil {
+			return model.ArtworkDraft{}, err
+		}
 	}
-	_ = s.upsert(draft)
-	return draft
+	if err := s.upsert(draft); err != nil {
+		return model.ArtworkDraft{}, err
+	}
+	return draft, nil
 }
 
-func (s *PostgresArtworkStore) Get(artworkID string) (model.ArtworkDraft, bool) {
+func (s *PostgresArtworkStore) Get(artworkID string) (model.ArtworkDraft, bool, error) {
 	var payload []byte
 	if err := s.db.QueryRow("SELECT payload FROM calligraphy_artwork_drafts WHERE artwork_id=$1", artworkID).Scan(&payload); err != nil {
-		return model.ArtworkDraft{}, false
+		if errors.Is(err, sql.ErrNoRows) {
+			return model.ArtworkDraft{}, false, nil
+		}
+		return model.ArtworkDraft{}, false, err
 	}
 	var draft model.ArtworkDraft
 	if err := json.Unmarshal(payload, &draft); err != nil {
-		return model.ArtworkDraft{}, false
+		return model.ArtworkDraft{}, false, err
 	}
-	return draft, true
+	return draft, true, nil
 }
 
-func (s *PostgresArtworkStore) ListByOwner(ownerUserID string) []model.ArtworkDraft {
+func (s *PostgresArtworkStore) ListByOwner(ownerUserID string) ([]model.ArtworkDraft, error) {
 	rows, err := s.db.Query("SELECT payload FROM calligraphy_artwork_drafts WHERE owner_user_id=$1 ORDER BY created_at", ownerUserID)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer rows.Close()
 	items := make([]model.ArtworkDraft, 0)
 	for rows.Next() {
 		var payload []byte
 		if err := rows.Scan(&payload); err != nil {
-			continue
+			return nil, err
 		}
 		var draft model.ArtworkDraft
-		if err := json.Unmarshal(payload, &draft); err == nil {
-			items = append(items, draft)
+		if err := json.Unmarshal(payload, &draft); err != nil {
+			return nil, err
 		}
+		items = append(items, draft)
 	}
-	return items
+	return items, rows.Err()
 }
 
-func (s *PostgresArtworkStore) Update(draft model.ArtworkDraft) model.ArtworkDraft {
-	_ = s.upsert(draft)
-	return draft
+func (s *PostgresArtworkStore) Update(draft model.ArtworkDraft) error {
+	return s.upsert(draft)
 }
 
-func (s *PostgresArtworkStore) Delete(artworkID string) bool {
+func (s *PostgresArtworkStore) Delete(artworkID string) (bool, error) {
 	result, err := s.db.Exec("DELETE FROM calligraphy_artwork_drafts WHERE artwork_id=$1", artworkID)
 	if err != nil {
-		return false
+		return false, err
 	}
-	affected, _ := result.RowsAffected()
-	return affected > 0
+	affected, err := result.RowsAffected()
+	return affected > 0, err
 }
 
 func (s *PostgresArtworkStore) upsert(draft model.ArtworkDraft) error {
@@ -221,77 +258,87 @@ func NewPostgresLearningStore(db *sql.DB) *PostgresLearningStore {
 	return &PostgresLearningStore{db: db}
 }
 
-func (s *PostgresLearningStore) SaveFavorite(favorite model.FavoriteGlyph) model.FavoriteGlyph {
-	payload, _ := json.Marshal(favorite)
-	_, _ = s.db.Exec(
+func (s *PostgresLearningStore) SaveFavorite(favorite model.FavoriteGlyph) (model.FavoriteGlyph, error) {
+	payload, err := json.Marshal(favorite)
+	if err != nil {
+		return model.FavoriteGlyph{}, err
+	}
+	_, err = s.db.Exec(
 		`INSERT INTO calligraphy_learning_favorites(owner_user_id, glyph_id, payload, created_at)
 		 VALUES($1,$2,$3,$4)
 		 ON CONFLICT(owner_user_id, glyph_id) DO UPDATE SET payload=excluded.payload, created_at=excluded.created_at`,
 		favorite.OwnerUserID, favorite.GlyphID, payload, favorite.CreatedAt,
 	)
-	return favorite
+	return favorite, err
 }
 
-func (s *PostgresLearningStore) DeleteFavorite(ownerUserID, glyphID string) bool {
+func (s *PostgresLearningStore) DeleteFavorite(ownerUserID, glyphID string) (bool, error) {
 	result, err := s.db.Exec("DELETE FROM calligraphy_learning_favorites WHERE owner_user_id=$1 AND glyph_id=$2", ownerUserID, glyphID)
 	if err != nil {
-		return false
+		return false, err
 	}
-	affected, _ := result.RowsAffected()
-	return affected > 0
+	affected, err := result.RowsAffected()
+	return affected > 0, err
 }
 
-func (s *PostgresLearningStore) ListFavorites(ownerUserID string) []model.FavoriteGlyph {
+func (s *PostgresLearningStore) ListFavorites(ownerUserID string) ([]model.FavoriteGlyph, error) {
 	rows, err := s.db.Query("SELECT payload FROM calligraphy_learning_favorites WHERE owner_user_id=$1 ORDER BY created_at DESC", ownerUserID)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer rows.Close()
 	items := make([]model.FavoriteGlyph, 0)
 	for rows.Next() {
 		var payload []byte
 		if err := rows.Scan(&payload); err != nil {
-			continue
+			return nil, err
 		}
 		var favorite model.FavoriteGlyph
-		if err := json.Unmarshal(payload, &favorite); err == nil {
-			items = append(items, favorite)
+		if err := json.Unmarshal(payload, &favorite); err != nil {
+			return nil, err
 		}
+		items = append(items, favorite)
 	}
-	return items
+	return items, rows.Err()
 }
 
-func (s *PostgresLearningStore) AddPractice(record model.PracticeRecord) model.PracticeRecord {
+func (s *PostgresLearningStore) AddPractice(record model.PracticeRecord) (model.PracticeRecord, error) {
 	if record.PracticeID == "" {
-		_ = s.db.QueryRow("SELECT 'practice-' || lpad(nextval('calligraphy_practice_seq')::text, 6, '0')").Scan(&record.PracticeID)
+		if err := s.db.QueryRow("SELECT 'practice-' || lpad(nextval('calligraphy_practice_seq')::text, 6, '0')").Scan(&record.PracticeID); err != nil {
+			return model.PracticeRecord{}, err
+		}
 	}
-	payload, _ := json.Marshal(record)
-	_, _ = s.db.Exec(
+	payload, err := json.Marshal(record)
+	if err != nil {
+		return model.PracticeRecord{}, err
+	}
+	_, err = s.db.Exec(
 		"INSERT INTO calligraphy_learning_practice(practice_id, owner_user_id, payload, created_at) VALUES($1,$2,$3,$4)",
 		record.PracticeID, record.OwnerUserID, payload, record.CreatedAt,
 	)
-	return record
+	return record, err
 }
 
-func (s *PostgresLearningStore) ListPractice(ownerUserID string) []model.PracticeRecord {
+func (s *PostgresLearningStore) ListPractice(ownerUserID string) ([]model.PracticeRecord, error) {
 	rows, err := s.db.Query("SELECT payload FROM calligraphy_learning_practice WHERE owner_user_id=$1 ORDER BY created_at DESC LIMIT 20", ownerUserID)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer rows.Close()
 	items := make([]model.PracticeRecord, 0)
 	for rows.Next() {
 		var payload []byte
 		if err := rows.Scan(&payload); err != nil {
-			continue
+			return nil, err
 		}
 		var record model.PracticeRecord
-		if err := json.Unmarshal(payload, &record); err == nil {
-			items = append(items, record)
+		if err := json.Unmarshal(payload, &record); err != nil {
+			return nil, err
 		}
+		items = append(items, record)
 	}
 	sort.Slice(items, func(i, j int) bool {
 		return items[i].CreatedAt > items[j].CreatedAt
 	})
-	return items
+	return items, rows.Err()
 }

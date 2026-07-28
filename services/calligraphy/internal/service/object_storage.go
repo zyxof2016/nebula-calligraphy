@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -40,14 +41,8 @@ func NewS3ArtifactStore(cfg S3ArtifactStoreConfig) *S3ArtifactStore {
 }
 
 func (s *S3ArtifactStore) Save(export model.ExportRecord, content []byte) (string, error) {
-	if strings.TrimSpace(s.cfg.Endpoint) == "" || strings.TrimSpace(s.cfg.Bucket) == "" {
-		return "", errors.New("s3 endpoint and bucket are required")
-	}
-	if strings.TrimSpace(s.cfg.Region) == "" {
-		s.cfg.Region = "us-east-1"
-	}
-	if strings.TrimSpace(s.cfg.AccessKeyID) == "" || strings.TrimSpace(s.cfg.SecretAccessKey) == "" {
-		return "", errors.New("s3 access key and secret are required")
+	if err := s.validateConfig(); err != nil {
+		return "", err
 	}
 	key := path.Join(export.ArtworkID, export.ExportID+"."+export.Format)
 	endpoint, err := url.Parse(strings.TrimRight(s.cfg.Endpoint, "/") + "/" + s.cfg.Bucket + "/" + key)
@@ -75,6 +70,43 @@ func (s *S3ArtifactStore) Save(export model.ExportRecord, content []byte) (strin
 	return key, nil
 }
 
+func (s *S3ArtifactStore) Check(ctx context.Context) error {
+	if err := s.validateConfig(); err != nil {
+		return err
+	}
+	endpoint, err := url.Parse(strings.TrimRight(s.cfg.Endpoint, "/") + "/" + s.cfg.Bucket)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, endpoint.String(), nil)
+	if err != nil {
+		return err
+	}
+	s.sign(req, nil)
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("s3 bucket readiness failed: %s", resp.Status)
+	}
+	return nil
+}
+
+func (s *S3ArtifactStore) validateConfig() error {
+	if strings.TrimSpace(s.cfg.Endpoint) == "" || strings.TrimSpace(s.cfg.Bucket) == "" {
+		return errors.New("s3 endpoint and bucket are required")
+	}
+	if strings.TrimSpace(s.cfg.Region) == "" {
+		s.cfg.Region = "us-east-1"
+	}
+	if strings.TrimSpace(s.cfg.AccessKeyID) == "" || strings.TrimSpace(s.cfg.SecretAccessKey) == "" {
+		return errors.New("s3 access key and secret are required")
+	}
+	return nil
+}
+
 func (s *S3ArtifactStore) sign(req *http.Request, body []byte) {
 	now := s.now().UTC()
 	amzDate := now.Format("20060102T150405Z")
@@ -90,6 +122,10 @@ func (s *S3ArtifactStore) sign(req *http.Request, body []byte) {
 	canonicalURI := req.URL.EscapedPath()
 	signedHeaders := "host;x-amz-content-sha256;x-amz-date"
 	canonicalHeaders := fmt.Sprintf("host:%s\nx-amz-content-sha256:%s\nx-amz-date:%s\n", req.URL.Host, payloadHash, amzDate)
+	if s.cfg.SessionToken != "" {
+		signedHeaders = "host;x-amz-content-sha256;x-amz-date;x-amz-security-token"
+		canonicalHeaders += "x-amz-security-token:" + strings.TrimSpace(s.cfg.SessionToken) + "\n"
+	}
 	canonicalRequest := strings.Join([]string{
 		req.Method,
 		canonicalURI,

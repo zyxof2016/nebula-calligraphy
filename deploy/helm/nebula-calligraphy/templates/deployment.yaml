@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nebula-calligraphy.name" . }}
+  labels:
+    {{- include "nebula-calligraphy.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "nebula-calligraphy.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "nebula-calligraphy.selectorLabels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: calligraphy
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8090
+          env:
+            - name: PORT
+              value: "8090"
+            - name: CALLIGRAPHY_RUNTIME_PROFILE
+              value: managed
+            - name: CALLIGRAPHY_WEB_DIR
+              value: /app/web
+            - name: CALLIGRAPHY_RENDER_FONT_FILE
+              value: /app/assets/fonts/MaShanZheng-Regular.ttf
+            - name: CALLIGRAPHY_RENDER_CACHE_DIR
+              value: /cache
+            - name: CALLIGRAPHY_LEARNING_TIMEZONE
+              value: {{ .Values.config.learningTimezone | quote }}
+            - name: CALLIGRAPHY_AUTH_MODE
+              value: {{ .Values.config.authMode | quote }}
+            - name: CALLIGRAPHY_IDENTITY_ISSUER
+              value: {{ .Values.config.identityIssuer | quote }}
+            - name: CALLIGRAPHY_IDENTITY_AUDIENCE
+              value: {{ .Values.config.identityAudience | quote }}
+            - name: CALLIGRAPHY_IDENTITY_BASE_URL
+              value: {{ .Values.config.identityBaseUrl | quote }}
+            - name: CALLIGRAPHY_IDENTITY_JWKS_URL
+              value: {{ .Values.config.identityJwksUrl | quote }}
+            - name: CALLIGRAPHY_IDENTITY_CLIENT_ID
+              value: {{ .Values.config.identityClientId | quote }}
+            - name: CALLIGRAPHY_OBJECT_STORAGE_ENDPOINT
+              value: {{ .Values.config.objectStorageEndpoint | quote }}
+            - name: CALLIGRAPHY_OBJECT_STORAGE_BUCKET
+              value: {{ .Values.config.objectStorageBucket | quote }}
+            - name: CALLIGRAPHY_OBJECT_STORAGE_REGION
+              value: {{ .Values.config.objectStorageRegion | quote }}
+            - name: CALLIGRAPHY_AUDIT_SINK
+              value: {{ .Values.config.auditSink | quote }}
+            - name: CALLIGRAPHY_ALLOWED_ORIGINS
+              value: {{ .Values.config.allowedOrigins | quote }}
+            - name: CALLIGRAPHY_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: database-url
+            - name: CALLIGRAPHY_OBJECT_STORAGE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: object-storage-access-key
+            - name: CALLIGRAPHY_OBJECT_STORAGE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: object-storage-secret-key
+            - name: CALLIGRAPHY_OBJECT_STORAGE_SESSION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: object-storage-session-token
+                  optional: true
+            - name: CALLIGRAPHY_AUDIT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: audit-token
+                  optional: true
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 4
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 12
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: cache
+              mountPath: /cache
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: cache
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

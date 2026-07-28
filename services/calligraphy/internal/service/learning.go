@@ -15,11 +15,11 @@ import (
 )
 
 type LearningStore interface {
-	SaveFavorite(favorite model.FavoriteGlyph) model.FavoriteGlyph
-	DeleteFavorite(ownerUserID, glyphID string) bool
-	ListFavorites(ownerUserID string) []model.FavoriteGlyph
-	AddPractice(record model.PracticeRecord) model.PracticeRecord
-	ListPractice(ownerUserID string) []model.PracticeRecord
+	SaveFavorite(favorite model.FavoriteGlyph) (model.FavoriteGlyph, error)
+	DeleteFavorite(ownerUserID, glyphID string) (bool, error)
+	ListFavorites(ownerUserID string) ([]model.FavoriteGlyph, error)
+	AddPractice(record model.PracticeRecord) (model.PracticeRecord, error)
+	ListPractice(ownerUserID string) ([]model.PracticeRecord, error)
 }
 
 type learningState struct {
@@ -42,27 +42,27 @@ func NewInMemoryLearningStore() *InMemoryLearningStore {
 	}
 }
 
-func (s *InMemoryLearningStore) SaveFavorite(favorite model.FavoriteGlyph) model.FavoriteGlyph {
+func (s *InMemoryLearningStore) SaveFavorite(favorite model.FavoriteGlyph) (model.FavoriteGlyph, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.favorites[favoriteKey(favorite.OwnerUserID, favorite.GlyphID)] = favorite
-	return favorite
+	return favorite, nil
 }
 
-func (s *InMemoryLearningStore) DeleteFavorite(ownerUserID, glyphID string) bool {
+func (s *InMemoryLearningStore) DeleteFavorite(ownerUserID, glyphID string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	key := favoriteKey(ownerUserID, glyphID)
 	if _, ok := s.favorites[key]; !ok {
-		return false
+		return false, nil
 	}
 	delete(s.favorites, key)
-	return true
+	return true, nil
 }
 
-func (s *InMemoryLearningStore) ListFavorites(ownerUserID string) []model.FavoriteGlyph {
+func (s *InMemoryLearningStore) ListFavorites(ownerUserID string) ([]model.FavoriteGlyph, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -73,24 +73,24 @@ func (s *InMemoryLearningStore) ListFavorites(ownerUserID string) []model.Favori
 		}
 	}
 	sortFavorites(items)
-	return items
+	return items, nil
 }
 
-func (s *InMemoryLearningStore) AddPractice(record model.PracticeRecord) model.PracticeRecord {
+func (s *InMemoryLearningStore) AddPractice(record model.PracticeRecord) (model.PracticeRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.nextPractice++
 	record.PracticeID = fmt.Sprintf("practice-%06d", s.nextPractice)
 	s.practice = append(s.practice, record)
-	return record
+	return record, nil
 }
 
-func (s *InMemoryLearningStore) ListPractice(ownerUserID string) []model.PracticeRecord {
+func (s *InMemoryLearningStore) ListPractice(ownerUserID string) ([]model.PracticeRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return filterPractice(s.practice, ownerUserID)
+	return filterPractice(s.practice, ownerUserID), nil
 }
 
 type FileLearningStore struct {
@@ -116,29 +116,42 @@ func NewFileLearningStore(path string) (*FileLearningStore, error) {
 	return store, nil
 }
 
-func (s *FileLearningStore) SaveFavorite(favorite model.FavoriteGlyph) model.FavoriteGlyph {
+func (s *FileLearningStore) SaveFavorite(favorite model.FavoriteGlyph) (model.FavoriteGlyph, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.favorites[favoriteKey(favorite.OwnerUserID, favorite.GlyphID)] = favorite
-	_ = s.persistLocked()
-	return favorite
+	key := favoriteKey(favorite.OwnerUserID, favorite.GlyphID)
+	previous, existed := s.favorites[key]
+	s.favorites[key] = favorite
+	if err := s.persistLocked(); err != nil {
+		if existed {
+			s.favorites[key] = previous
+		} else {
+			delete(s.favorites, key)
+		}
+		return model.FavoriteGlyph{}, err
+	}
+	return favorite, nil
 }
 
-func (s *FileLearningStore) DeleteFavorite(ownerUserID, glyphID string) bool {
+func (s *FileLearningStore) DeleteFavorite(ownerUserID, glyphID string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	key := favoriteKey(ownerUserID, glyphID)
-	if _, ok := s.favorites[key]; !ok {
-		return false
+	previous, ok := s.favorites[key]
+	if !ok {
+		return false, nil
 	}
 	delete(s.favorites, key)
-	_ = s.persistLocked()
-	return true
+	if err := s.persistLocked(); err != nil {
+		s.favorites[key] = previous
+		return false, err
+	}
+	return true, nil
 }
 
-func (s *FileLearningStore) ListFavorites(ownerUserID string) []model.FavoriteGlyph {
+func (s *FileLearningStore) ListFavorites(ownerUserID string) ([]model.FavoriteGlyph, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -149,25 +162,30 @@ func (s *FileLearningStore) ListFavorites(ownerUserID string) []model.FavoriteGl
 		}
 	}
 	sortFavorites(items)
-	return items
+	return items, nil
 }
 
-func (s *FileLearningStore) AddPractice(record model.PracticeRecord) model.PracticeRecord {
+func (s *FileLearningStore) AddPractice(record model.PracticeRecord) (model.PracticeRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	previousNext := s.nextPractice
 	s.nextPractice++
 	record.PracticeID = fmt.Sprintf("practice-%06d", s.nextPractice)
 	s.practice = append(s.practice, record)
-	_ = s.persistLocked()
-	return record
+	if err := s.persistLocked(); err != nil {
+		s.practice = s.practice[:len(s.practice)-1]
+		s.nextPractice = previousNext
+		return model.PracticeRecord{}, err
+	}
+	return record, nil
 }
 
-func (s *FileLearningStore) ListPractice(ownerUserID string) []model.PracticeRecord {
+func (s *FileLearningStore) ListPractice(ownerUserID string) ([]model.PracticeRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return filterPractice(s.practice, ownerUserID)
+	return filterPractice(s.practice, ownerUserID), nil
 }
 
 func (s *FileLearningStore) load() error {
@@ -254,14 +272,22 @@ func (s *LearningService) AddFavorite(ownerUserID string, req model.CreateFavori
 		CopybookID:  detail.Glyph.CopybookID,
 		CreatedAt:   now,
 	}
-	return s.store.SaveFavorite(favorite), nil
+	saved, err := s.store.SaveFavorite(favorite)
+	if err != nil {
+		return model.FavoriteGlyph{}, fmt.Errorf("%w: save favorite: %v", ErrPersistence, err)
+	}
+	return saved, nil
 }
 
-func (s *LearningService) DeleteFavorite(ownerUserID, glyphID string) bool {
+func (s *LearningService) DeleteFavorite(ownerUserID, glyphID string) (bool, error) {
 	if strings.TrimSpace(ownerUserID) == "" || strings.TrimSpace(glyphID) == "" {
-		return false
+		return false, errors.New("owner_user_id and glyph_id are required")
 	}
-	return s.store.DeleteFavorite(ownerUserID, glyphID)
+	deleted, err := s.store.DeleteFavorite(ownerUserID, glyphID)
+	if err != nil {
+		return false, fmt.Errorf("%w: delete favorite: %v", ErrPersistence, err)
+	}
+	return deleted, nil
 }
 
 func (s *LearningService) RecordPractice(ownerUserID string, req model.CreatePracticeRecordRequest) (model.PracticeRecord, error) {
@@ -288,15 +314,25 @@ func (s *LearningService) RecordPractice(ownerUserID string, req model.CreatePra
 		GridType:     req.GridType,
 		CreatedAt:    s.now().UTC().Format(time.RFC3339),
 	}
-	return s.store.AddPractice(record), nil
+	saved, err := s.store.AddPractice(record)
+	if err != nil {
+		return model.PracticeRecord{}, fmt.Errorf("%w: save practice record: %v", ErrPersistence, err)
+	}
+	return saved, nil
 }
 
-func (s *LearningService) GetProfile(ownerUserID string) model.LearningProfile {
+func (s *LearningService) GetProfile(ownerUserID string) (model.LearningProfile, error) {
 	if strings.TrimSpace(ownerUserID) == "" {
-		return model.LearningProfile{}
+		return model.LearningProfile{}, errors.New("owner_user_id is required")
 	}
-	favorites := s.store.ListFavorites(ownerUserID)
-	practice := s.store.ListPractice(ownerUserID)
+	favorites, err := s.store.ListFavorites(ownerUserID)
+	if err != nil {
+		return model.LearningProfile{}, fmt.Errorf("%w: list favorites: %v", ErrPersistence, err)
+	}
+	practice, err := s.store.ListPractice(ownerUserID)
+	if err != nil {
+		return model.LearningProfile{}, fmt.Errorf("%w: list practice records: %v", ErrPersistence, err)
+	}
 	todayPractice := filterPracticeByDate(practice, s.now(), s.location)
 	dailyPlan := s.buildDailyPlan(favorites, practice)
 	profile := model.LearningProfile{
@@ -312,7 +348,7 @@ func (s *LearningService) GetProfile(ownerUserID string) model.LearningProfile {
 	if len(practice) > 0 {
 		profile.LastPracticedAt = practice[0].CreatedAt
 	}
-	return profile
+	return profile, nil
 }
 
 func filterPracticeByDate(practice []model.PracticeRecord, day time.Time, location *time.Location) []model.PracticeRecord {

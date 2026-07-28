@@ -190,19 +190,21 @@ class _LoginScreenState extends State<LoginScreen> {
                         label: const Text('登录'),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: controller.busy
-                            ? null
-                            : () => controller.register(
-                                username: _username.text,
-                                password: _password.text,
-                              ),
-                        icon: const Icon(Icons.person_add_alt_1),
-                        label: const Text('注册'),
+                    if (controller.supportsRegistration) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: controller.busy
+                              ? null
+                              : () => controller.register(
+                                  username: _username.text,
+                                  password: _password.text,
+                                ),
+                          icon: const Icon(Icons.person_add_alt_1),
+                          label: const Text('注册'),
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 16),

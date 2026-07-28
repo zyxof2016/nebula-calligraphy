@@ -14,6 +14,9 @@ func TestNewRouterServesConfiguredWebApp(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(webDir, "index.html"), []byte("<html><title>Nebula Calligraphy</title></html>"), 0o644); err != nil {
 		t.Fatalf("WriteFile(index.html) error = %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(webDir, "main.dart.js"), []byte("window.calligraphy=true;"), 0o644); err != nil {
+		t.Fatalf("WriteFile(main.dart.js) error = %v", err)
+	}
 
 	router, err := newRouter(appConfig{WebDir: webDir})
 	if err != nil {
@@ -30,10 +33,32 @@ func TestNewRouterServesConfiguredWebApp(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "Nebula Calligraphy") {
 		t.Fatalf("body = %q, want web app html", rec.Body.String())
 	}
+
+	for path, want := range map[string]string{
+		"/main.dart.js":     "window.calligraphy=true;",
+		"/creation/example": "Nebula Calligraphy",
+	} {
+		rec = httptest.NewRecorder()
+		req = httptest.NewRequest(http.MethodGet, path, nil)
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), want) {
+			t.Fatalf("GET %s = %d %q, want 200 containing %q", path, rec.Code, rec.Body.String(), want)
+		}
+		if path == "/main.dart.js" && rec.Header().Get("Cache-Control") != "public, max-age=3600" {
+			t.Fatalf("GET %s Cache-Control = %q", path, rec.Header().Get("Cache-Control"))
+		}
+		if path == "/creation/example" && rec.Header().Get("Cache-Control") != "no-cache" {
+			t.Fatalf("GET %s Cache-Control = %q", path, rec.Header().Get("Cache-Control"))
+		}
+	}
 }
 
 func TestNewRouterServesConfiguredArtifacts(t *testing.T) {
 	artifactDir := t.TempDir()
+	webDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(webDir, "index.html"), []byte("<html>web fallback</html>"), 0o644); err != nil {
+		t.Fatalf("WriteFile(index.html) error = %v", err)
+	}
 	artifactPath := filepath.Join(artifactDir, "artwork-000001", "export-000001.svg")
 	if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
@@ -42,7 +67,7 @@ func TestNewRouterServesConfiguredArtifacts(t *testing.T) {
 		t.Fatalf("WriteFile(export) error = %v", err)
 	}
 
-	router, err := newRouter(appConfig{ExportDir: artifactDir})
+	router, err := newRouter(appConfig{ExportDir: artifactDir, WebDir: webDir})
 	if err != nil {
 		t.Fatalf("newRouter() error = %v", err)
 	}
@@ -80,6 +105,9 @@ func TestNewRouterAddsSecurityHeaders(t *testing.T) {
 	}
 	if got := rec.Header().Get("Content-Security-Policy"); !strings.Contains(got, "frame-ancestors 'none'") {
 		t.Fatalf("Content-Security-Policy = %q, want frame-ancestors none", got)
+	}
+	if got := rec.Header().Get("Content-Security-Policy"); !strings.Contains(got, "'wasm-unsafe-eval'") {
+		t.Fatalf("Content-Security-Policy = %q, want Flutter WebAssembly support", got)
 	}
 }
 
@@ -139,6 +167,13 @@ func TestNewRouterRejectsInvalidLearningTimezone(t *testing.T) {
 	}
 }
 
+func TestNewRouterRejectsInvalidSessionTTL(t *testing.T) {
+	_, err := newRouter(appConfig{SessionTTL: "0s"})
+	if err == nil || !strings.Contains(err.Error(), "CALLIGRAPHY_SESSION_TTL") {
+		t.Fatalf("newRouter(invalid session ttl) error = %v, want session ttl error", err)
+	}
+}
+
 func TestTrialRuntimeAllowsFlutterDevCorsOrigin(t *testing.T) {
 	router, err := newRouter(appConfig{})
 	if err != nil {
@@ -167,6 +202,7 @@ func TestManagedRuntimeRequiresExplicitCorsOrigin(t *testing.T) {
 		RuntimeProfile:         "managed",
 		DatabaseURL:            "postgres://calligraphy@example/calligraphy",
 		IdentityIssuer:         "https://identity.example",
+		IdentityAudience:       "nebula-calligraphy",
 		IdentityBaseURL:        "https://identity.example",
 		IdentityJWKSURL:        "https://identity.example/.well-known/jwks.json",
 		ObjectStorageEndpoint:  "https://s3.example",
@@ -212,6 +248,7 @@ func TestManagedRuntimeConfigExposesOnlyBrowserSafeAuthSettings(t *testing.T) {
 		DatabaseURL:            "postgres://calligraphy@example/calligraphy",
 		AuthMode:               "oidc-pkce",
 		IdentityIssuer:         "https://identity.example",
+		IdentityAudience:       "nebula-calligraphy",
 		IdentityBaseURL:        "https://identity.example",
 		IdentityClientID:       "nebula-calligraphy-web",
 		IdentityJWKSURL:        "https://identity.example/.well-known/jwks.json",
@@ -296,6 +333,46 @@ func TestProductionProfileRequiresPersistentConfig(t *testing.T) {
 	}
 }
 
+func TestProductionReadinessChecksWebAssets(t *testing.T) {
+	dir := t.TempDir()
+	router, err := newRouter(appConfig{
+		RuntimeProfile: "production",
+		AuthFile:       filepath.Join(dir, "auth.json"),
+		DataFile:       filepath.Join(dir, "drafts.json"),
+		LearningFile:   filepath.Join(dir, "learning.json"),
+		AuditFile:      filepath.Join(dir, "audit.jsonl"),
+		ExportDir:      filepath.Join(dir, "artifacts"),
+		WebDir:         filepath.Join(dir, "missing-web"),
+	})
+	if err != nil {
+		t.Fatalf("newRouter(production with missing web assets) error = %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ready", nil))
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("/ready status = %d, want 503: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"web_assets":"unavailable"`) {
+		t.Fatalf("/ready body = %s, want unavailable web_assets", rec.Body.String())
+	}
+}
+
+func TestCheckLocalPersistentStorageRejectsInvalidAuditPath(t *testing.T) {
+	dir := t.TempDir()
+	err := checkLocalPersistentStorage(appConfig{
+		AuthFile:     filepath.Join(dir, "auth.json"),
+		DataFile:     filepath.Join(dir, "drafts.json"),
+		LearningFile: filepath.Join(dir, "learning.json"),
+		AuditFile:    dir,
+		ExportDir:    filepath.Join(dir, "artifacts"),
+	})
+	if err == nil || !strings.Contains(err.Error(), "audit path is not a regular file") {
+		t.Fatalf("checkLocalPersistentStorage() error = %v, want invalid audit path", err)
+	}
+}
+
 func TestManagedFoundationProfileRequiresExternalServices(t *testing.T) {
 	_, err := newRouter(appConfig{RuntimeProfile: "managed"})
 	if err == nil {
@@ -306,6 +383,7 @@ func TestManagedFoundationProfileRequiresExternalServices(t *testing.T) {
 		RuntimeProfile:         "managed",
 		DatabaseURL:            "postgres://calligraphy@example/calligraphy",
 		IdentityIssuer:         "nebula",
+		IdentityAudience:       "nebula-calligraphy",
 		IdentityBaseURL:        "https://identity.example",
 		ObjectStorageEndpoint:  "https://s3.example",
 		ObjectStorageBucket:    "calligraphy-prod",
@@ -323,6 +401,7 @@ func TestManagedFoundationProfileRequiresExternalServices(t *testing.T) {
 		RuntimeProfile:         "managed",
 		DatabaseURL:            "postgres://calligraphy@example/calligraphy",
 		IdentityIssuer:         "https://identity.example",
+		IdentityAudience:       "nebula-calligraphy",
 		IdentityBaseURL:        "https://identity.example",
 		IdentityJWKSURL:        "https://identity.example/.well-known/jwks.json",
 		ObjectStorageEndpoint:  "https://s3.example",
@@ -340,11 +419,21 @@ func TestManagedFoundationProfileRequiresExternalServices(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	router.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("/ready managed status = %d, want 200: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("/ready managed status = %d, want 503 without live dependencies: %s", rec.Code, rec.Body.String())
 	}
 	if !strings.Contains(rec.Body.String(), `"foundation_mode":"managed"`) {
 		t.Fatalf("/ready body = %s, want managed foundation mode", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"postgres":"unavailable"`) {
+		t.Fatalf("/ready body = %s, want unavailable postgres component", rec.Body.String())
+	}
+
+	registerRec := httptest.NewRecorder()
+	registerReq := httptest.NewRequest(http.MethodPost, "/api/v1/calligraphy/auth/register", strings.NewReader(`{"username":"learner","password":"secret123"}`))
+	router.ServeHTTP(registerRec, registerReq)
+	if registerRec.Code != http.StatusNotFound {
+		t.Fatalf("managed local register status = %d, want 404: %s", registerRec.Code, registerRec.Body.String())
 	}
 }
 

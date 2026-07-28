@@ -11,11 +11,12 @@ import (
 )
 
 func TestS3ArtifactStoreSavesExportWithSigV4(t *testing.T) {
-	var method, path, authHeader, body string
+	var method, path, authHeader, securityToken, body string
 	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		method = r.Method
 		path = r.URL.Path
 		authHeader = r.Header.Get("Authorization")
+		securityToken = r.Header.Get("X-Amz-Security-Token")
 		content, _ := io.ReadAll(r.Body)
 		body = string(content)
 		return &http.Response{
@@ -32,6 +33,7 @@ func TestS3ArtifactStoreSavesExportWithSigV4(t *testing.T) {
 		Region:          "us-east-1",
 		AccessKeyID:     "AKIA_TEST",
 		SecretAccessKey: "secret",
+		SessionToken:    "temporary-session-token",
 	})
 	store.now = func() time.Time { return time.Date(2026, 6, 26, 10, 0, 0, 0, time.UTC) }
 	store.client = &http.Client{Transport: transport}
@@ -56,6 +58,9 @@ func TestS3ArtifactStoreSavesExportWithSigV4(t *testing.T) {
 	}
 	if !strings.HasPrefix(authHeader, "AWS4-HMAC-SHA256 ") {
 		t.Fatalf("Authorization = %q, want AWS4-HMAC-SHA256", authHeader)
+	}
+	if !strings.Contains(authHeader, "x-amz-security-token") || securityToken != "temporary-session-token" {
+		t.Fatalf("temporary credential headers = %q / %q, want signed session token", authHeader, securityToken)
 	}
 	if body != "<svg></svg>" {
 		t.Fatalf("body = %q, want svg content", body)

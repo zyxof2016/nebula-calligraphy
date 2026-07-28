@@ -1,12 +1,31 @@
 package service
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/nebula-platform/nebula/services/calligraphy/internal/model"
 )
+
+type failingLearningStore struct{}
+
+func (failingLearningStore) SaveFavorite(model.FavoriteGlyph) (model.FavoriteGlyph, error) {
+	return model.FavoriteGlyph{}, errors.New("database unavailable")
+}
+func (failingLearningStore) DeleteFavorite(string, string) (bool, error) {
+	return false, errors.New("database unavailable")
+}
+func (failingLearningStore) ListFavorites(string) ([]model.FavoriteGlyph, error) {
+	return nil, errors.New("database unavailable")
+}
+func (failingLearningStore) AddPractice(model.PracticeRecord) (model.PracticeRecord, error) {
+	return model.PracticeRecord{}, errors.New("database unavailable")
+}
+func (failingLearningStore) ListPractice(string) ([]model.PracticeRecord, error) {
+	return nil, errors.New("database unavailable")
+}
 
 func TestLearningServiceFavoritesAndPracticeProfile(t *testing.T) {
 	catalog := NewInMemoryGlyphCatalog()
@@ -33,7 +52,10 @@ func TestLearningServiceFavoritesAndPracticeProfile(t *testing.T) {
 		t.Fatal("PracticeID is empty")
 	}
 
-	profile := svc.GetProfile("learner-1")
+	profile, err := svc.GetProfile("learner-1")
+	if err != nil {
+		t.Fatalf("GetProfile() error = %v", err)
+	}
 	if profile.PracticeCount != 1 {
 		t.Fatalf("PracticeCount = %d, want 1", profile.PracticeCount)
 	}
@@ -59,7 +81,10 @@ func TestLearningServiceFavoritesAndPracticeProfile(t *testing.T) {
 func TestLearningServiceBuildsDailyPlanForNewLearner(t *testing.T) {
 	svc := NewLearningService(NewInMemoryLearningStore(), NewInMemoryGlyphCatalog())
 
-	profile := svc.GetProfile("new-learner")
+	profile, err := svc.GetProfile("new-learner")
+	if err != nil {
+		t.Fatalf("GetProfile() error = %v", err)
+	}
 
 	if len(profile.DailyPlan) < 4 {
 		t.Fatalf("len(DailyPlan) = %d, want at least 4", len(profile.DailyPlan))
@@ -90,7 +115,10 @@ func TestLearningServiceMarksDailyCopyStepCompletedAfterPractice(t *testing.T) {
 		t.Fatalf("RecordPractice() error = %v", err)
 	}
 
-	profile := svc.GetProfile("learner-1")
+	profile, err := svc.GetProfile("learner-1")
+	if err != nil {
+		t.Fatalf("GetProfile() error = %v", err)
+	}
 
 	if len(profile.DailySteps) == 0 {
 		t.Fatal("DailySteps is empty")
@@ -114,7 +142,10 @@ func TestLearningServiceDailyStepsIgnoreYesterdayPractice(t *testing.T) {
 	}
 	svc.now = func() time.Time { return time.Date(2026, 7, 6, 1, 0, 0, 0, time.UTC) }
 
-	profile := svc.GetProfile("learner-1")
+	profile, err := svc.GetProfile("learner-1")
+	if err != nil {
+		t.Fatalf("GetProfile() error = %v", err)
+	}
 
 	if profile.TodayPracticeCount != 0 {
 		t.Fatalf("TodayPracticeCount = %d, want 0", profile.TodayPracticeCount)
@@ -137,7 +168,10 @@ func TestLearningServiceCountsTodayByConfiguredLocation(t *testing.T) {
 	}
 	svc.now = func() time.Time { return time.Date(2026, 7, 6, 1, 0, 0, 0, time.UTC) }
 
-	profile := svc.GetProfile("learner-1")
+	profile, err := svc.GetProfile("learner-1")
+	if err != nil {
+		t.Fatalf("GetProfile() error = %v", err)
+	}
 
 	if profile.TodayPracticeCount != 1 {
 		t.Fatalf("TodayPracticeCount = %d, want 1", profile.TodayPracticeCount)
@@ -167,11 +201,24 @@ func TestFileLearningStorePersistsProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewFileLearningStore(reload) error = %v", err)
 	}
-	reloaded := NewLearningService(reloadedStore, catalog).GetProfile("learner-1")
+	reloaded, err := NewLearningService(reloadedStore, catalog).GetProfile("learner-1")
+	if err != nil {
+		t.Fatalf("GetProfile(reloaded) error = %v", err)
+	}
 	if len(reloaded.Favorites) != 1 {
 		t.Fatalf("len(Favorites) = %d, want 1", len(reloaded.Favorites))
 	}
 	if reloaded.PracticeCount != 1 {
 		t.Fatalf("PracticeCount = %d, want 1", reloaded.PracticeCount)
+	}
+}
+
+func TestLearningServicePropagatesPersistenceFailure(t *testing.T) {
+	svc := NewLearningService(failingLearningStore{}, NewInMemoryGlyphCatalog())
+	if _, err := svc.AddFavorite("learner-1", model.CreateFavoriteRequest{GlyphID: "ou-common-永"}); !errors.Is(err, ErrPersistence) {
+		t.Fatalf("AddFavorite() error = %v, want persistence error", err)
+	}
+	if _, err := svc.GetProfile("learner-1"); !errors.Is(err, ErrPersistence) {
+		t.Fatalf("GetProfile() error = %v, want persistence error", err)
 	}
 }

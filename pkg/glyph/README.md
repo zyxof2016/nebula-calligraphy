@@ -1,5 +1,6 @@
-# Glyph Package
+# 字形包
 
-Shared glyph matching and metadata logic should move here when the service grows beyond the in-memory MVP catalog.
+多个运行时需要共享字形匹配和元数据逻辑时，将公共实现迁移到这里。
 
-Production logic must continue excluding restricted or unreviewed glyphs from C-side responses.
+当前可运行实现位于 `services/calligraphy/internal/service`。生产逻辑必须继续从
+C 端响应中排除受限、未审核、已拒绝或未发布字形。

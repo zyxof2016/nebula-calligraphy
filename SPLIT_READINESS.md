@@ -1,25 +1,24 @@
-# nebula-calligraphy Split Readiness
+# nebula-calligraphy 拆仓与生产就绪状态
 
-## Current Status
+`nebula-calligraphy` 已完成独立仓库、独立编译、独立部署和星云底座适配。Go API、Flutter 客户端、契约、裸机发布、Docker 和 Helm 均在本仓库维护。
 
-`nebula-calligraphy` now contains the product and contract baseline plus a compilable MVP Go API runtime.
+## 已完成
 
-The runtime is intentionally limited to licensed/published glyph search, 120+ preset common learning glyphs per supported seed style (`ou`, `yan`), deterministic layout preview, artwork drafts, SVG export/download, and a static trial web workbench. Drafts can run in memory or persist to a local JSON file for trials; SVG exports can be returned inline or written to a local artifact directory. Identity enforcement, PostgreSQL persistence, object storage, and AI features remain explicit next integration steps.
+- 注册、登录、查字、临摹、收藏、学习档案、章法、草稿和 PNG/SVG 导出主流程。
+- 本地文件生产试用模式，以及 PostgreSQL、S3、Identity、HTTP 审计托管模式。
+- Argon2id 密码、24 小时会话、owner 权限校验和托管模式关闭本地认证。
+- PostgreSQL、对象存储和 Identity 真实就绪检查。
+- 裸机 systemd + Nginx、Docker Compose、Kubernetes Helm 三种部署入口。
+- Go、Flutter、Android debug、契约、脚本、视觉快照和容器构建 CI。
 
-## Required Checks
+## 上线边界
+
+技术运行闭环已经具备。公开商业上线前仍必须准备真实授权碑帖、至少两个书体的高频字内容和专家审校发布流程。当前通用服务端字体仅用于流程验证，不能宣称为真实欧体、颜体、柳体、赵体或瘦金体范字。
+
+## 必跑检查
 
 ```bash
 make -f Makefile.split split-check
-make -f Makefile.split split-deploy-test
+cd apps/mobile && flutter analyze && flutter test
+helm lint deploy/helm/nebula-calligraphy
 ```
-
-## MVP Readiness Gates
-
-- Copybook and glyph licensing plan is approved before importing real assets.
-- MVP data scope is fixed: two copybooks, two styles, 1000 high-frequency glyphs.
-- Identity, object storage, AI gateway, and audit integration contracts are wired behind configuration.
-- Trial deployments can set `CALLIGRAPHY_DATA_FILE` and `CALLIGRAPHY_EXPORT_DIR` to avoid losing drafts across restarts.
-- Trial deployments can set `CALLIGRAPHY_WEB_DIR=../../web/app` when running from `services/calligraphy` to serve the browser workbench.
-- Export contract supports SVG now; PNG/PDF output and object-storage checksum records are required before public beta.
-- Layout engine supports zhongtang, tiaofu, doufang, couplet, and custom size before public beta.
-- Admin publication flow prevents restricted or unreviewed glyphs from being served to C-side users.

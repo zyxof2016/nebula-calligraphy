@@ -1,0 +1,26 @@
+services:
+  calligraphy:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    image: nebula-calligraphy:local
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    volumes:
+      - calligraphy-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "1.50"
+          memory: 768M
+
+volumes:
+  calligraphy-data:

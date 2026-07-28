@@ -631,17 +631,43 @@ class User {
 }
 
 class AuthSession {
-  const AuthSession({required this.token, required this.user});
+  const AuthSession({
+    required this.token,
+    required this.expiresAt,
+    required this.user,
+  });
 
   factory AuthSession.fromJson(Map<String, dynamic> json) {
     return AuthSession(
       token: _string(json['token']),
+      expiresAt: _string(json['expires_at']),
       user: User.fromJson(json['user'] as Map<String, dynamic>),
     );
   }
 
   final String token;
+  final String expiresAt;
   final User user;
+}
+
+class RuntimeConfig {
+  const RuntimeConfig({
+    required this.runtimeProfile,
+    required this.authMode,
+    required this.identityLoginEndpoint,
+  });
+
+  factory RuntimeConfig.fromJson(Map<String, dynamic> json) {
+    return RuntimeConfig(
+      runtimeProfile: _string(json['runtime_profile'], fallback: 'trial'),
+      authMode: _string(json['auth_mode'], fallback: 'local'),
+      identityLoginEndpoint: _string(json['identity_login_endpoint']),
+    );
+  }
+
+  final String runtimeProfile;
+  final String authMode;
+  final String identityLoginEndpoint;
 }
 
 String _string(Object? value, {String fallback = ''}) {

@@ -17,4 +17,7 @@ func TestPostgresMigrationSQLIncludesCoreTables(t *testing.T) {
 			t.Fatalf("PostgresMigrationSQL missing %s", table)
 		}
 	}
+	if !strings.Contains(PostgresMigrationSQL, "expires_at timestamptz NOT NULL") {
+		t.Fatal("PostgresMigrationSQL does not define expiring auth sessions")
+	}
 }

@@ -2,6 +2,9 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,6 +23,7 @@ type Handler struct {
 	identity      service.IdentityVerifier
 	audit         service.AuditLogger
 	glyphRenderer *service.GlyphImageRenderer
+	localAuth     bool
 }
 
 func New(catalog service.GlyphCatalog, layout *service.LayoutEngine, artworks *service.ArtworkService, learning *service.LearningService, auth *service.AuthService, audit service.AuditLogger, identity ...service.IdentityVerifier) *Handler {
@@ -39,6 +43,7 @@ func New(catalog service.GlyphCatalog, layout *service.LayoutEngine, artworks *s
 		identity:      activeIdentity,
 		audit:         audit,
 		glyphRenderer: service.NewGlyphImageRenderer("", ""),
+		localAuth:     true,
 	}
 }
 
@@ -46,6 +51,10 @@ func (h *Handler) SetGlyphRenderer(renderer *service.GlyphImageRenderer) {
 	if renderer != nil {
 		h.glyphRenderer = renderer
 	}
+}
+
+func (h *Handler) SetLocalAuthEnabled(enabled bool) {
+	h.localAuth = enabled
 }
 
 func RegisterRoutes(r chi.Router, h *Handler) {
@@ -91,6 +100,10 @@ func (h *Handler) SearchGlyphs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
+	if !h.localAuth {
+		writeError(w, http.StatusNotFound, "local_auth_disabled", "local registration is disabled")
+		return
+	}
 	defer r.Body.Close()
 
 	var req model.AuthRequest
@@ -101,6 +114,10 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	session, err := h.auth.Register(req)
 	if err != nil {
 		h.recordAudit("auth.register", "", "", "failure")
+		if errors.Is(err, service.ErrPersistence) {
+			writeServiceUnavailable(w, err)
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid_auth_request", err.Error())
 		return
 	}
@@ -109,6 +126,10 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+	if !h.localAuth {
+		writeError(w, http.StatusNotFound, "local_auth_disabled", "local login is disabled")
+		return
+	}
 	defer r.Body.Close()
 
 	var req model.AuthRequest
@@ -119,6 +140,10 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	session, err := h.auth.Login(req)
 	if err != nil {
 		h.recordAudit("auth.login", "", "", "failure")
+		if errors.Is(err, service.ErrPersistence) {
+			writeServiceUnavailable(w, err)
+			return
+		}
 		writeError(w, http.StatusUnauthorized, "invalid_credentials", err.Error())
 		return
 	}
@@ -127,16 +152,25 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CurrentUser(w http.ResponseWriter, r *http.Request) {
-	user, ok := h.identity.CurrentUser(bearerToken(r.Header.Get("Authorization")))
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+	user, err := h.identity.CurrentUser(bearerToken(r.Header.Get("Authorization")))
+	if err != nil {
+		writeIdentityError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, user)
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
-	if !h.auth.Logout(bearerToken(r.Header.Get("Authorization"))) {
+	if !h.localAuth {
+		writeError(w, http.StatusNotFound, "local_auth_disabled", "local logout is disabled")
+		return
+	}
+	loggedOut, err := h.auth.Logout(bearerToken(r.Header.Get("Authorization")))
+	if err != nil {
+		writeServiceUnavailable(w, fmt.Errorf("%w: delete auth session: %v", service.ErrPersistence, err))
+		return
+	}
+	if !loggedOut {
 		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
 		return
 	}
@@ -224,6 +258,10 @@ func (h *Handler) CreateArtworkDraft(w http.ResponseWriter, r *http.Request) {
 
 	draft, err := h.artworks.CreateDraft(req)
 	if err != nil {
+		if errors.Is(err, service.ErrPersistence) {
+			writeServiceUnavailable(w, err)
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid_artwork_request", err.Error())
 		return
 	}
@@ -241,7 +279,12 @@ func (h *Handler) ListArtworkDrafts(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "forbidden_owner", "owner_user_id must match authenticated user")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": h.artworks.ListDrafts(user.UserID)})
+	items, err := h.artworks.ListDrafts(user.UserID)
+	if err != nil {
+		writeServiceUnavailable(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
 func (h *Handler) GetArtworkDraft(w http.ResponseWriter, r *http.Request) {
@@ -250,7 +293,11 @@ func (h *Handler) GetArtworkDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	artworkID := chi.URLParam(r, "artworkID")
-	draft, ok := h.artworks.GetDraft(artworkID)
+	draft, ok, err := h.artworks.GetDraft(artworkID)
+	if err != nil {
+		writeServiceUnavailable(w, err)
+		return
+	}
 	if !ok {
 		writeError(w, http.StatusNotFound, "artwork_not_found", "artwork draft not found")
 		return
@@ -268,7 +315,11 @@ func (h *Handler) DeleteArtworkDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	artworkID := chi.URLParam(r, "artworkID")
-	draft, ok := h.artworks.GetDraft(artworkID)
+	draft, ok, err := h.artworks.GetDraft(artworkID)
+	if err != nil {
+		writeServiceUnavailable(w, err)
+		return
+	}
 	if !ok {
 		writeError(w, http.StatusNotFound, "artwork_not_found", "artwork draft not found")
 		return
@@ -277,7 +328,15 @@ func (h *Handler) DeleteArtworkDraft(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "forbidden_owner", "artwork owner must match authenticated user")
 		return
 	}
-	if !h.artworks.DeleteDraft(artworkID) {
+	if !h.requireAudit(w, "artwork.delete.requested", user.UserID, artworkID) {
+		return
+	}
+	deleted, err := h.artworks.DeleteDraft(artworkID)
+	if err != nil {
+		writeServiceUnavailable(w, err)
+		return
+	}
+	if !deleted {
 		writeError(w, http.StatusNotFound, "artwork_not_found", "artwork draft not found")
 		return
 	}
@@ -293,7 +352,11 @@ func (h *Handler) ExportArtworkDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	artworkID := chi.URLParam(r, "artworkID")
-	draft, ok := h.artworks.GetDraft(artworkID)
+	draft, ok, err := h.artworks.GetDraft(artworkID)
+	if err != nil {
+		writeServiceUnavailable(w, err)
+		return
+	}
 	if !ok {
 		writeError(w, http.StatusNotFound, "artwork_not_found", "artwork draft not found")
 		return
@@ -308,9 +371,16 @@ func (h *Handler) ExportArtworkDraft(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
 		return
 	}
+	if !h.requireAudit(w, "artwork.export.requested", user.UserID, artworkID) {
+		return
+	}
 
 	export, err := h.artworks.ExportDraft(artworkID, req)
 	if err != nil {
+		if errors.Is(err, service.ErrPersistence) {
+			writeServiceUnavailable(w, err)
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid_export_request", err.Error())
 		return
 	}
@@ -323,7 +393,12 @@ func (h *Handler) GetLearningProfile(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.requireOwner(w, r, ownerUserID); !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, h.learning.GetProfile(ownerUserID))
+	profile, err := h.learning.GetProfile(ownerUserID)
+	if err != nil {
+		writeServiceUnavailable(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, profile)
 }
 
 func (h *Handler) AddFavorite(w http.ResponseWriter, r *http.Request) {
@@ -341,6 +416,10 @@ func (h *Handler) AddFavorite(w http.ResponseWriter, r *http.Request) {
 	}
 	favorite, err := h.learning.AddFavorite(ownerUserID, req)
 	if err != nil {
+		if errors.Is(err, service.ErrPersistence) {
+			writeServiceUnavailable(w, err)
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid_favorite_request", err.Error())
 		return
 	}
@@ -353,7 +432,12 @@ func (h *Handler) DeleteFavorite(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.requireOwner(w, r, ownerUserID); !ok {
 		return
 	}
-	if !h.learning.DeleteFavorite(ownerUserID, chi.URLParam(r, "glyphID")) {
+	deleted, err := h.learning.DeleteFavorite(ownerUserID, chi.URLParam(r, "glyphID"))
+	if err != nil {
+		writeServiceUnavailable(w, err)
+		return
+	}
+	if !deleted {
 		writeError(w, http.StatusNotFound, "favorite_not_found", "favorite glyph not found")
 		return
 	}
@@ -376,6 +460,10 @@ func (h *Handler) RecordPractice(w http.ResponseWriter, r *http.Request) {
 	}
 	record, err := h.learning.RecordPractice(ownerUserID, req)
 	if err != nil {
+		if errors.Is(err, service.ErrPersistence) {
+			writeServiceUnavailable(w, err)
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid_practice_request", err.Error())
 		return
 	}
@@ -394,6 +482,10 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 		"code":    code,
 		"message": message,
 	})
+}
+
+func writeServiceUnavailable(w http.ResponseWriter, err error) {
+	writeError(w, http.StatusServiceUnavailable, "storage_unavailable", err.Error())
 }
 
 func (h *Handler) enrichLayoutSlots(r *http.Request, layout *model.LayoutResult) {
@@ -447,12 +539,20 @@ func absoluteURL(r *http.Request, path string) string {
 }
 
 func (h *Handler) requireUser(w http.ResponseWriter, r *http.Request) (model.User, bool) {
-	user, ok := h.identity.CurrentUser(bearerToken(r.Header.Get("Authorization")))
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+	user, err := h.identity.CurrentUser(bearerToken(r.Header.Get("Authorization")))
+	if err != nil {
+		writeIdentityError(w, err)
 		return model.User{}, false
 	}
 	return user, true
+}
+
+func writeIdentityError(w http.ResponseWriter, err error) {
+	if errors.Is(err, service.ErrUnauthorized) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+	writeError(w, http.StatusServiceUnavailable, "identity_unavailable", "identity verification is temporarily unavailable")
 }
 
 func (h *Handler) requireOwner(w http.ResponseWriter, r *http.Request, ownerUserID string) (model.User, bool) {
@@ -475,11 +575,23 @@ func bearerToken(header string) string {
 	return strings.TrimSpace(strings.TrimPrefix(header, prefix))
 }
 
-func (h *Handler) recordAudit(action, actorID, resourceID, outcome string) {
-	_ = h.audit.Record(service.AuditEvent{
+func (h *Handler) recordAudit(action, actorID, resourceID, outcome string) error {
+	err := h.audit.Record(service.AuditEvent{
 		Action:     action,
 		ActorID:    actorID,
 		ResourceID: resourceID,
 		Outcome:    outcome,
 	})
+	if err != nil {
+		log.Printf("audit record failed action=%s actor=%s resource=%s: %v", action, actorID, resourceID, err)
+	}
+	return err
+}
+
+func (h *Handler) requireAudit(w http.ResponseWriter, action, actorID, resourceID string) bool {
+	if err := h.recordAudit(action, actorID, resourceID, "attempt"); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "audit_unavailable", "audit service is temporarily unavailable")
+		return false
+	}
+	return true
 }

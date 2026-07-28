@@ -11,7 +11,7 @@ Nebula Calligraphy 是面向 C 端的 AI 书法学习与集字创作应用。它
 | 智能书法字典 | 拼音/部首/笔画检索、字形对比、来源碑帖、基础书写说明 | 拍照检索、手写检索、语音讲解 |
 | 碑帖字库 | `Jiuchenggong`、`Duobaota` 和高频字样本；支持从可追溯 manifest 加载真实碑帖裁切字 | 大规模碑帖扩展、自动切字和专家工作台 |
 | 集字创作 | 文本输入、书体/碑帖选择、幅式选择、自动章法排版、落款和印章预览、单字替换 | 偏旁合成、跨书家自动混排 |
-| 导出 | PNG/PDF、临摹模板、作品参考图 | AR 临摹和视频卡片 |
+| 导出 | PNG/SVG、临摹模板、作品参考图 | PDF、AR 临摹和视频卡片 |
 | 用户资产 | 收藏、每日练习记录、学习档案、作品草稿、近期历史 | 社区和课堂工作流 |
 
 ## 当前运行单元
@@ -21,7 +21,7 @@ Nebula Calligraphy 是面向 C 端的 AI 书法学习与集字创作应用。它
 | API | 状态 | 说明 |
 |-----|------|------|
 | `GET /health` | 已实现 | 容器和进程健康探针 |
-| `GET /ready` | 已实现 | 生产配置就绪探针，会校验持久化配置 |
+| `GET /ready` | 已实现 | 托管模式会实际检查 PostgreSQL 迁移、对象存储桶和 Identity JWKS |
 | `GET /metrics` | 已实现 | Prometheus 文本指标，包含请求数和进程运行时长 |
 | `POST /api/v1/calligraphy/auth/register` | 已实现 | 创建本地 MVP 学习者账号并返回会话令牌 |
 | `POST /api/v1/calligraphy/auth/login` | 已实现 | 校验用户名密码并返回会话令牌 |
@@ -41,9 +41,9 @@ Nebula Calligraphy 是面向 C 端的 AI 书法学习与集字创作应用。它
 | `DELETE /api/v1/calligraphy/users/{id}/favorites/{glyph_id}` | 已实现 | 移除一个收藏字 |
 | `POST /api/v1/calligraphy/users/{id}/practice` | 已实现 | 记录一次单字练习动作，包含模板类型和格线类型 |
 | `GET /artifacts/{storage_key}` | 已实现 | 配置 `CALLIGRAPHY_EXPORT_DIR` 后提供本地 PNG/SVG 导出下载 |
-| 静态试用工作台 | 已实现 | 通过 `CALLIGRAPHY_WEB_DIR` 托管 `web/app`；支持本地注册/登录、常用字、查字/详情、练习模板预览/下载、收藏、练习记录、学习档案、章法预览、保存、列表、载入、删除、导出历史和 PNG/SVG 下载 |
+| Flutter Web 工作台 | 已实现 | 通过 `CALLIGRAPHY_WEB_DIR` 托管 Flutter Web；支持登录/注册、常用字、查字/详情、练习、学习档案、章法预览、草稿和 PNG/SVG 导出。`web/app` 保留为轻量兼容客户端 |
 
-该服务可将本地用户、草稿、学习记录、审计日志和 PNG/SVG 导出保存到本地文件，用于受控生产试用。用户草稿、收藏、练习和学习档案接口都要求 Bearer 令牌，并拒绝 所属用户不匹配的请求；连续登录失败会触发临时锁定。托管底座模式会在启动前校验 PostgreSQL、Identity、对象存储和审计接收端 配置，使用 PostgreSQL 保存用户/会话和学习资产，校验 Nebula Identity 兼容的 JWKS/RS256 或 HS256 Bearer 令牌，向浏览器暴露安全的运行时认证配置，托管 Web 登录优先使用 OIDC Authorization Code + PKCE，Nebula Identity 直连登录保留为兼容回退，并通过 S3 兼容对象存储写入导出产物。面向大规模商业生产仍需要授权碑帖入库，以及选定云服务的运维运行手册。
+该服务可将本地用户、草稿、学习记录、审计日志和 PNG/SVG 导出保存到本地文件，用于受控生产试用。所有持久化错误会返回 `503`，不会把写入失败伪装成成功。本地密码使用 Argon2id，会话默认 24 小时过期。托管模式关闭本地认证端点，使用 PostgreSQL、S3 兼容对象存储、Nebula Identity 和 HTTP 审计服务，并对 Identity 令牌校验签名、issuer、audience、exp 和 nbf。Flutter 托管登录默认使用 `nebula-direct`，且必须通过 HTTPS。面向商业生产仍需要授权碑帖批量入库和专家审校后台。
 
 ## 视觉和字体策略
 
