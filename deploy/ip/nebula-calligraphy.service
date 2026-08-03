@@ -23,6 +23,7 @@ Environment=CALLIGRAPHY_LEARNING_FILE=/data/nebula-calligraphy/state/learning.js
 Environment=CALLIGRAPHY_AUDIT_FILE=/data/nebula-calligraphy/state/audit.jsonl
 Environment=CALLIGRAPHY_EXPORT_DIR=/data/nebula-calligraphy/state/artifacts
 Environment=CALLIGRAPHY_WEB_DIR=/data/nebula-calligraphy/web
+Environment=CALLIGRAPHY_GLYPH_MANIFEST_FILE=/data/nebula-calligraphy/assets/copybooks/production/manifest.json
 Environment=CALLIGRAPHY_RENDER_FONT_FILE=/data/nebula-calligraphy/assets/fonts/MaShanZheng-Regular.ttf
 Environment=CALLIGRAPHY_RENDER_CACHE_DIR=/data/nebula-calligraphy/state/render-cache
 Environment=CALLIGRAPHY_LEARNING_TIMEZONE=Asia/Shanghai

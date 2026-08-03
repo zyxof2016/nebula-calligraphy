@@ -160,6 +160,18 @@ func TestNewRouterRejectsInvalidGlyphManifest(t *testing.T) {
 	}
 }
 
+func TestProductionRejectsManifestWithoutPublishedGlyphs(t *testing.T) {
+	manifestPath := writeRuntimeGlyphManifestFixture(t, `{
+  "schema_version":"calligraphy.glyph_manifest.v1",
+  "copybook":{"copybook_id":"drafts","title":"草稿","style":"ou","calligrapher":"欧阳询","source_url":"https://example.invalid/source","license_status":"public_domain","attribution":"fixture"},
+  "glyphs":[{"glyph_id":"draft-yong","character":"永","source_image":"s3://glyphs/yong.png","crop_box":{"x":0,"y":0,"width":64,"height":64,"unit":"px"},"review_status":"draft"}]
+}`)
+	_, err := newGlyphCatalog(appConfig{RuntimeProfile: "production", GlyphManifestFile: manifestPath})
+	if err == nil || !strings.Contains(err.Error(), "published") {
+		t.Fatalf("newGlyphCatalog(production drafts) error = %v, want published glyph requirement", err)
+	}
+}
+
 func TestNewRouterRejectsInvalidLearningTimezone(t *testing.T) {
 	_, err := newRouter(appConfig{LearningTimezone: "Mars/Base"})
 	if err == nil || !strings.Contains(err.Error(), "CALLIGRAPHY_LEARNING_TIMEZONE") {
@@ -200,6 +212,7 @@ func TestTrialRuntimeAllowsFlutterDevCorsOrigin(t *testing.T) {
 func TestManagedRuntimeRequiresExplicitCorsOrigin(t *testing.T) {
 	cfg := appConfig{
 		RuntimeProfile:         "managed",
+		GlyphManifestFile:      fixtureGlyphManifest(t),
 		DatabaseURL:            "postgres://calligraphy@example/calligraphy",
 		IdentityIssuer:         "https://identity.example",
 		IdentityAudience:       "nebula-calligraphy",
@@ -245,6 +258,7 @@ func TestManagedRuntimeRequiresExplicitCorsOrigin(t *testing.T) {
 func TestManagedRuntimeConfigExposesOnlyBrowserSafeAuthSettings(t *testing.T) {
 	router, err := newRouter(appConfig{
 		RuntimeProfile:         "managed",
+		GlyphManifestFile:      fixtureGlyphManifest(t),
 		DatabaseURL:            "postgres://calligraphy@example/calligraphy",
 		AuthMode:               "oidc-pkce",
 		IdentityIssuer:         "https://identity.example",
@@ -313,13 +327,14 @@ func TestProductionProfileRequiresPersistentConfig(t *testing.T) {
 		t.Fatalf("WriteFile(index.html) error = %v", err)
 	}
 	router, err := newRouter(appConfig{
-		RuntimeProfile: "production",
-		AuthFile:       filepath.Join(dir, "auth.json"),
-		DataFile:       filepath.Join(dir, "drafts.json"),
-		LearningFile:   filepath.Join(dir, "learning.json"),
-		AuditFile:      filepath.Join(dir, "audit.jsonl"),
-		ExportDir:      filepath.Join(dir, "artifacts"),
-		WebDir:         webDir,
+		RuntimeProfile:    "production",
+		AuthFile:          filepath.Join(dir, "auth.json"),
+		DataFile:          filepath.Join(dir, "drafts.json"),
+		LearningFile:      filepath.Join(dir, "learning.json"),
+		AuditFile:         filepath.Join(dir, "audit.jsonl"),
+		ExportDir:         filepath.Join(dir, "artifacts"),
+		WebDir:            webDir,
+		GlyphManifestFile: fixtureGlyphManifest(t),
 	})
 	if err != nil {
 		t.Fatalf("newRouter(production configured) error = %v", err)
@@ -336,13 +351,14 @@ func TestProductionProfileRequiresPersistentConfig(t *testing.T) {
 func TestProductionReadinessChecksWebAssets(t *testing.T) {
 	dir := t.TempDir()
 	router, err := newRouter(appConfig{
-		RuntimeProfile: "production",
-		AuthFile:       filepath.Join(dir, "auth.json"),
-		DataFile:       filepath.Join(dir, "drafts.json"),
-		LearningFile:   filepath.Join(dir, "learning.json"),
-		AuditFile:      filepath.Join(dir, "audit.jsonl"),
-		ExportDir:      filepath.Join(dir, "artifacts"),
-		WebDir:         filepath.Join(dir, "missing-web"),
+		RuntimeProfile:    "production",
+		AuthFile:          filepath.Join(dir, "auth.json"),
+		DataFile:          filepath.Join(dir, "drafts.json"),
+		LearningFile:      filepath.Join(dir, "learning.json"),
+		AuditFile:         filepath.Join(dir, "audit.jsonl"),
+		ExportDir:         filepath.Join(dir, "artifacts"),
+		WebDir:            filepath.Join(dir, "missing-web"),
+		GlyphManifestFile: fixtureGlyphManifest(t),
 	})
 	if err != nil {
 		t.Fatalf("newRouter(production with missing web assets) error = %v", err)
@@ -381,6 +397,7 @@ func TestManagedFoundationProfileRequiresExternalServices(t *testing.T) {
 
 	_, err = newRouter(appConfig{
 		RuntimeProfile:         "managed",
+		GlyphManifestFile:      fixtureGlyphManifest(t),
 		DatabaseURL:            "postgres://calligraphy@example/calligraphy",
 		IdentityIssuer:         "nebula",
 		IdentityAudience:       "nebula-calligraphy",
@@ -399,6 +416,7 @@ func TestManagedFoundationProfileRequiresExternalServices(t *testing.T) {
 
 	router, err := newRouter(appConfig{
 		RuntimeProfile:         "managed",
+		GlyphManifestFile:      fixtureGlyphManifest(t),
 		DatabaseURL:            "postgres://calligraphy@example/calligraphy",
 		IdentityIssuer:         "https://identity.example",
 		IdentityAudience:       "nebula-calligraphy",
@@ -472,4 +490,28 @@ func writeRuntimeGlyphManifestFixture(t *testing.T, content string) string {
 		t.Fatalf("WriteFile(glyph manifest) error = %v", err)
 	}
 	return path
+}
+
+func fixtureGlyphManifest(t *testing.T) string {
+	t.Helper()
+	return writeRuntimeGlyphManifestFixture(t, `{
+  "schema_version": "calligraphy.glyph_manifest.v1",
+  "copybook": {
+    "copybook_id": "production-copybook",
+    "title": "生产字帖",
+    "style": "ou",
+    "calligrapher": "欧阳询",
+    "source_url": "https://example.invalid/public-domain-source",
+    "license_status": "public_domain",
+    "attribution": "production fixture"
+  },
+  "glyphs": [{
+    "glyph_id": "production-yong",
+    "character": "永",
+    "source_image": "s3://calligraphy/glyphs/yong.png",
+    "crop_box": {"x": 0, "y": 0, "width": 64, "height": 64, "unit": "px"},
+    "license_status": "public_domain",
+    "review_status": "published"
+  }]
+}`)
 }

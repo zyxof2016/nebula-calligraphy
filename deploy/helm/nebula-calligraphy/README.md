@@ -2,6 +2,25 @@
 
 该 Chart 只用于托管底座模式，应用保持无状态。PostgreSQL、S3 兼容对象存储、Nebula Identity 和审计服务必须先准备好。
 
+字形清单必须来自已授权、已审校的生产字库，并至少包含一个 `review_status=published` 且非 `restricted` 的字。把包含 `manifest.json` 的只读 PVC 挂载给应用：
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nebula-calligraphy-glyphs
+spec:
+  accessModes: [ReadOnlyMany]
+  storageClassName: <storage-class>
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+将 `manifest.json` 和其引用的本地资源写入该卷；`source_image` 使用对象存储 URI 时只需写入 manifest。
+
+不能提供 `ReadOnlyMany` 的集群可使用云文件系统 CSI，或创建同名只读卷并通过 `glyphCatalog.existingClaim` 指定。示例 `manifest.sample.json` 全部是草稿，不得用于生产。
+
 创建 Secret：
 
 ```bash
@@ -20,6 +39,7 @@ kubectl create secret generic nebula-calligraphy \
 helm upgrade --install calligraphy deploy/helm/nebula-calligraphy \
   --set image.repository=ghcr.io/zyxof2016/nebula-calligraphy \
   --set image.tag=<version> \
+  --set glyphCatalog.existingClaim=nebula-calligraphy-glyphs \
   --set ingress.enabled=true \
   --set ingress.host=calligraphy.example.com
 ```

@@ -53,7 +53,7 @@ Nebula Calligraphy 是面向 C 端的 AI 书法学习与集字创作应用。它
 - 书法内容：字形搜索、单字详情和章法预览返回 `render_asset`，前端直接加载服务端 PNG 字图。
 - 服务端兜底字体：`assets/fonts/MaShanZheng-Regular.ttf` 仅部署到服务端，由 `CALLIGRAPHY_RENDER_FONT_FILE` 使用，不进入 Web 包。
 
-Ma Shan Zheng 只是当前无授权碑帖裁切图时的服务端视觉兜底。正式内容生产仍应以授权碑帖高清图、单字裁切、书体来源标注和专家审核为准，不能把通用展示字体当作真实欧体、颜体、柳体或赵体字库。
+Ma Shan Zheng 只用于 `trial` 试用环境的服务端视觉兜底。`production` 和 `managed` 模式必须配置字形 manifest，且只服务清单中已授权、已审校发布的碑帖裁切字，不能把通用展示字体或内置样本当作真实欧体、颜体、柳体或赵体字库。
 
 ## 碑帖范字流水线
 
@@ -62,7 +62,7 @@ Ma Shan Zheng 只是当前无授权碑帖裁切图时的服务端视觉兜底。
 - `assets/copybooks/jiuchenggong/manifest.sample.json`：九成宫 manifest 样例，坐标为格式示例，全部保持 `draft`，不会作为已发布字库返回。
 - `docs/contracts/glyph-manifest-v1.json`：机器可读契约，定义碑帖来源、授权、单字裁切框和审校状态。
 - `services/calligraphy/cmd/calligraphy-glyph-manifest`：导入前校验工具。
-- `CALLIGRAPHY_GLYPH_MANIFEST_FILE`：运行时加载 manifest 字库，优先于内置兜底字库。
+- `CALLIGRAPHY_GLYPH_MANIFEST_FILE`：运行时加载 manifest 字库。`production` 和 `managed` 模式只返回清单中已发布字形，不再混入内置样本；`trial` 模式才允许以内置常用字补齐演示数据。
 - `CALLIGRAPHY_RENDER_FONT_FILE`：服务端 PNG 字图渲染兜底字体路径。
 - `CALLIGRAPHY_RENDER_CACHE_DIR`：服务端字图渲染缓存目录。
 - `CALLIGRAPHY_LEARNING_TIMEZONE`：学习日课和“今日已练”的统计时区，默认 `Asia/Shanghai`。

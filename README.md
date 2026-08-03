@@ -91,7 +91,7 @@ PORT=8090 \
 go run ./cmd/calligraphy
 ```
 
-`CALLIGRAPHY_GLYPH_MANIFEST_FILE` 中 `review_status=published` 的字会优先于内置常用字样本返回；`draft`、`rejected`、`restricted` 字不会对外服务。
+`CALLIGRAPHY_GLYPH_MANIFEST_FILE` 中只有 `review_status=published` 且非 `restricted` 的字会对外服务。`production` 和 `managed` 模式不会混入内置常用字样本，并要求清单至少包含一个可发布字形。
 
 ### 服务端字图渲染
 
@@ -147,6 +147,7 @@ Go 服务默认设置保守的 HTTP 超时和安全响应头：`X-Content-Type-O
 - `CALLIGRAPHY_AUDIT_FILE`
 - `CALLIGRAPHY_EXPORT_DIR`
 - `CALLIGRAPHY_WEB_DIR`
+- `CALLIGRAPHY_GLYPH_MANIFEST_FILE`
 
 HTTPS 应在反向代理或负载均衡处终止，只把私有端口上的 HTTP 转发给 Go 进程。公网代理应设置 HSTS、请求体大小限制，并暴露 `/health` 和 `/ready` 给监控系统。
 生产试用模式的 `/ready` 会真实验证持久化目录可写、审计文件可追加以及 Web
@@ -171,6 +172,7 @@ HTTPS 应在反向代理或负载均衡处终止，只把私有端口上的 HTTP
 - `CALLIGRAPHY_OBJECT_STORAGE_SESSION_TOKEN`（使用云厂商临时凭证时）
 - `CALLIGRAPHY_AUDIT_SINK`
 - `CALLIGRAPHY_WEB_DIR`
+- `CALLIGRAPHY_GLYPH_MANIFEST_FILE`
 
 托管模式使用 PostgreSQL 存储用户、会话、草稿、收藏和练习记录；使用 S3 兼容对象存储保存导出产物；使用 JWKS/RS256 或 Nebula HS256 校验 Identity 令牌的签名、issuer、audience、exp 和 nbf；使用 HTTP/HTTPS 审计接收端接收 JSON 审计事件。如果审计服务要求 bearer 令牌，配置 `CALLIGRAPHY_AUDIT_TOKEN`。托管模式会关闭本地注册、登录和退出端点。
 
@@ -219,6 +221,13 @@ go run ./cmd/calligraphy-migrate
 | 裸机 | `scripts/build-ip-release.sh`、`deploy/ip/` | 单台 2C4G Ubuntu 试用或小规模生产 |
 | Docker | `scripts/build-docker-image.sh`、`deploy/docker/compose.yaml` | 单机容器部署，无需外部镜像仓库 |
 | Kubernetes | `deploy/helm/nebula-calligraphy/` | 托管底座模式，外接 PostgreSQL、对象存储、Identity 和审计 |
+
+Docker 启动前必须指定已授权、已审校的生产字形清单；sample 草稿不能通过生产门禁：
+
+```bash
+CALLIGRAPHY_GLYPH_MANIFEST_FILE_HOST=/absolute/path/to/manifest.json \
+docker compose -f deploy/docker/compose.yaml up -d
+```
 
 Android 正式包必须配置 `CALLIGRAPHY_ANDROID_KEYSTORE`、`CALLIGRAPHY_ANDROID_KEYSTORE_PASSWORD`、`CALLIGRAPHY_ANDROID_KEY_ALIAS` 和 `CALLIGRAPHY_ANDROID_KEY_PASSWORD`。release 构建不会回退到 debug 签名。
 Android 正式包禁用明文 HTTP；本地或 IP 联调请使用 debug 包，生产 Identity 和 Calligraphy 必须通过受信任的 HTTPS 地址提供。

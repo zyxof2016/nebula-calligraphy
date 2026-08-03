@@ -8,6 +8,11 @@ image:
 imagePullSecrets: []
 existingSecret: nebula-calligraphy
 
+glyphCatalog:
+  existingClaim: nebula-calligraphy-glyphs
+  mountPath: /glyph-catalog
+  manifestFile: manifest.json
+
 config:
   identityIssuer: https://identity.example.com
   identityAudience: nebula-calligraphy

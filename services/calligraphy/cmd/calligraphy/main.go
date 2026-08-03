@@ -270,6 +270,12 @@ func newGlyphCatalog(cfg appConfig) (service.GlyphCatalog, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load CALLIGRAPHY_GLYPH_MANIFEST_FILE: %w", err)
 	}
+	if cfg.RuntimeProfile == "production" || cfg.RuntimeProfile == "managed" {
+		if len(fileCatalog.Search(service.GlyphSearchParams{})) == 0 {
+			return nil, errors.New("CALLIGRAPHY_GLYPH_MANIFEST_FILE must contain at least one published, unrestricted glyph")
+		}
+		return fileCatalog, nil
+	}
 	return service.NewCompositeGlyphCatalog(fileCatalog, fallback), nil
 }
 
@@ -303,12 +309,13 @@ func validateConfig(cfg appConfig) error {
 		return nil
 	case "production":
 		return validateRequired("production profile requires persistent configuration", map[string]string{
-			"CALLIGRAPHY_AUTH_FILE":     cfg.AuthFile,
-			"CALLIGRAPHY_DATA_FILE":     cfg.DataFile,
-			"CALLIGRAPHY_LEARNING_FILE": cfg.LearningFile,
-			"CALLIGRAPHY_AUDIT_FILE":    cfg.AuditFile,
-			"CALLIGRAPHY_EXPORT_DIR":    cfg.ExportDir,
-			"CALLIGRAPHY_WEB_DIR":       cfg.WebDir,
+			"CALLIGRAPHY_AUTH_FILE":           cfg.AuthFile,
+			"CALLIGRAPHY_DATA_FILE":           cfg.DataFile,
+			"CALLIGRAPHY_LEARNING_FILE":       cfg.LearningFile,
+			"CALLIGRAPHY_AUDIT_FILE":          cfg.AuditFile,
+			"CALLIGRAPHY_EXPORT_DIR":          cfg.ExportDir,
+			"CALLIGRAPHY_WEB_DIR":             cfg.WebDir,
+			"CALLIGRAPHY_GLYPH_MANIFEST_FILE": cfg.GlyphManifestFile,
 		})
 	case "managed":
 		if err := validateRequired("managed profile requires external foundation configuration", map[string]string{
@@ -323,6 +330,7 @@ func validateConfig(cfg appConfig) error {
 			"CALLIGRAPHY_OBJECT_STORAGE_SECRET_KEY": cfg.ObjectStorageSecretKey,
 			"CALLIGRAPHY_AUDIT_SINK":                cfg.AuditSink,
 			"CALLIGRAPHY_WEB_DIR":                   cfg.WebDir,
+			"CALLIGRAPHY_GLYPH_MANIFEST_FILE":       cfg.GlyphManifestFile,
 		}); err != nil {
 			return err
 		}

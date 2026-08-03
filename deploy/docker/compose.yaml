@@ -9,6 +9,7 @@ services:
       - "8090:8090"
     volumes:
       - calligraphy-data:/data
+      - ${CALLIGRAPHY_GLYPH_MANIFEST_FILE_HOST:?set host path to an approved glyph manifest}:/data/glyphs/manifest.json:ro
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777

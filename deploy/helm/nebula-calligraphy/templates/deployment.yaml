@@ -40,6 +40,8 @@ spec:
               value: managed
             - name: CALLIGRAPHY_WEB_DIR
               value: /app/web
+            - name: CALLIGRAPHY_GLYPH_MANIFEST_FILE
+              value: {{ printf "%s/%s" .Values.glyphCatalog.mountPath .Values.glyphCatalog.manifestFile | quote }}
             - name: CALLIGRAPHY_RENDER_FONT_FILE
               value: /app/assets/fonts/MaShanZheng-Regular.ttf
             - name: CALLIGRAPHY_RENDER_CACHE_DIR
@@ -123,11 +125,17 @@ spec:
             capabilities:
               drop: ["ALL"]
           volumeMounts:
+            - name: glyph-catalog
+              mountPath: {{ .Values.glyphCatalog.mountPath | quote }}
+              readOnly: true
             - name: cache
               mountPath: /cache
             - name: tmp
               mountPath: /tmp
       volumes:
+        - name: glyph-catalog
+          persistentVolumeClaim:
+            claimName: {{ required "glyphCatalog.existingClaim is required" .Values.glyphCatalog.existingClaim }}
         - name: cache
           emptyDir:
             sizeLimit: 256Mi
