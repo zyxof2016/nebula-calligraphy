@@ -20,25 +20,24 @@
     "CALLIGRAPHY_IDENTITY_ISSUER",
     "CALLIGRAPHY_IDENTITY_AUDIENCE",
     "CALLIGRAPHY_IDENTITY_BASE_URL",
+    "CALLIGRAPHY_IDENTITY_CLIENT_ID",
+    "CALLIGRAPHY_IDENTITY_TENANT",
+    "CALLIGRAPHY_IDENTITY_JWKS_URL",
     "CALLIGRAPHY_OBJECT_STORAGE_ENDPOINT",
     "CALLIGRAPHY_OBJECT_STORAGE_BUCKET",
     "CALLIGRAPHY_OBJECT_STORAGE_REGION",
     "CALLIGRAPHY_OBJECT_STORAGE_ACCESS_KEY",
     "CALLIGRAPHY_OBJECT_STORAGE_SECRET_KEY",
     "CALLIGRAPHY_AUDIT_SINK",
-    "CALLIGRAPHY_WEB_DIR"
+    "CALLIGRAPHY_AUDIT_HEALTH_URL",
+    "CALLIGRAPHY_WEB_DIR",
+    "CALLIGRAPHY_GLYPH_MANIFEST_FILE"
   ],
   "managedAlternativeEnv": {
     "browserAuth": [
       "CALLIGRAPHY_AUTH_MODE",
-      "CALLIGRAPHY_IDENTITY_CLIENT_ID",
       "CALLIGRAPHY_IDENTITY_AUTHORIZATION_ENDPOINT",
-      "CALLIGRAPHY_IDENTITY_TOKEN_ENDPOINT",
-      "CALLIGRAPHY_IDENTITY_LOGIN_ENDPOINT"
-    ],
-    "identityVerifier": [
-      "CALLIGRAPHY_IDENTITY_JWKS_URL",
-      "CALLIGRAPHY_IDENTITY_HS256_SECRET"
+      "CALLIGRAPHY_IDENTITY_TOKEN_ENDPOINT"
     ],
     "auditAuth": [
       "CALLIGRAPHY_AUDIT_TOKEN"
@@ -57,7 +56,7 @@
     ]
   },
   "operations": {
-    "GET /ready": "返回就绪状态、foundation_mode 和依赖组件状态；managed 模式实际检查 PostgreSQL 迁移、对象存储桶和 Identity JWKS。",
+    "GET /ready": "返回就绪状态、foundation_mode 和依赖组件状态；managed 模式实际检查 PostgreSQL 迁移、对象存储桶、Identity 和审计接收端。",
     "GET /metrics": "返回 Prometheus 文本指标，包含请求数和运行时长。",
     "GET /api/v1/calligraphy/runtime-config": "返回浏览器安全的运行时形态和 Identity 登录配置，不包含密钥。",
     "go run ./cmd/calligraphy-migrate": "应用托管模式需要的 PostgreSQL 表和索引。",
@@ -65,9 +64,9 @@
     "scripts/calligraphy-restore.sh": "恢复本地生产试用文件和产物目录。"
   },
   "managedAdapters": {
-    "identity": "使用 CALLIGRAPHY_IDENTITY_ISSUER、CALLIGRAPHY_IDENTITY_AUDIENCE 和 CALLIGRAPHY_IDENTITY_JWKS_URL 校验 JWKS/RS256 Bearer 令牌，或使用 CALLIGRAPHY_IDENTITY_HS256_SECRET 校验 Nebula HS256 令牌。必须校验 issuer、audience、exp 和 nbf。Flutter 客户端默认使用 nebula-direct；轻量 Web 客户端可在 Identity provider 端点齐备后显式使用 oidc-pkce。",
+    "identity": "使用 CALLIGRAPHY_IDENTITY_ISSUER、CALLIGRAPHY_IDENTITY_AUDIENCE 和 CALLIGRAPHY_IDENTITY_JWKS_URL 校验 JWKS/RS256 Bearer 令牌。必须校验 issuer、audience、exp 和 nbf，消费方不持有令牌签发密钥。轻量 Web 和 Flutter Android/iOS 均使用 Identity OIDC PKCE，原生客户端使用系统浏览器回调。",
     "persistence": "PostgreSQL 存储本地用户/会话兼容数据、作品草稿、收藏和练习记录。",
     "objectStorage": "使用 CALLIGRAPHY_OBJECT_STORAGE_* 配置的 S3 兼容 PutObject 产物存储；云厂商临时凭证可附带并签名 CALLIGRAPHY_OBJECT_STORAGE_SESSION_TOKEN。",
-    "audit": "使用 CALLIGRAPHY_AUDIT_SINK 和可选 CALLIGRAPHY_AUDIT_TOKEN 的 HTTP/HTTPS JSON 审计事件 POST 接收端。"
+    "audit": "使用 CALLIGRAPHY_AUDIT_SINK 和可选 CALLIGRAPHY_AUDIT_TOKEN 的 HTTP/HTTPS JSON 审计事件 POST 接收端；CALLIGRAPHY_AUDIT_HEALTH_URL 提供带同一鉴权的独立只读健康检查。"
   }
 }

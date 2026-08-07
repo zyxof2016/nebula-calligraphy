@@ -1,5 +1,10 @@
 # Helm 部署
 
+生产镜像必须由 `.github/workflows/release-image.yml` 构建、扫描并使用 Sigstore 签名。
+把流水线输出的不可变摘要写入 `image.digest`，并设置
+`production.requireImageDigest=true`；Chart 会拒绝空摘要、全零占位摘要和 tag-only
+生产部署。可从 `values-production.example.yaml` 开始配置，禁止直接使用 `latest`。
+
 该 Chart 只用于托管底座模式，应用保持无状态。PostgreSQL、S3 兼容对象存储、Nebula Identity 和审计服务必须先准备好。
 
 字形清单必须来自已授权、已审校的生产字库，并至少包含一个 `review_status=published` 且非 `restricted` 的字。把包含 `manifest.json` 的只读 PVC 挂载给应用：
@@ -44,5 +49,5 @@ helm upgrade --install calligraphy deploy/helm/nebula-calligraphy \
   --set ingress.host=calligraphy.example.com
 ```
 
-安装和升级前会通过 Helm hook 执行 PostgreSQL 迁移。`/ready` 会实际检查数据库、对象存储和 Identity JWKS。
-Chart 默认使用当前 Flutter 客户端已完整支持的 `nebula-direct`；所有公网入口和 Identity 登录端点必须启用 HTTPS。
+安装和升级前会通过 Helm hook 执行 PostgreSQL 迁移。`/ready` 会实际检查数据库、对象存储、Identity 和 `config.auditHealthUrl` 指定的审计健康端点。
+Chart 默认并仅支持托管环境的 `oidc-pkce`。所有公网入口和 Identity 端点必须启用 HTTPS；Identity 需分别精确登记 Web 回调和 `com.nebula.calligraphy:/oauthredirect` 原生回调，并为两个公共客户端绑定资源 audience。CORS 只需包含 HTTPS Web origin，原生私有 scheme 不进入 CORS。

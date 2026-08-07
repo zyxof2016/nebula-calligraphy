@@ -217,6 +217,8 @@ func TestManagedRuntimeRequiresExplicitCorsOrigin(t *testing.T) {
 		IdentityIssuer:         "https://identity.example",
 		IdentityAudience:       "nebula-calligraphy",
 		IdentityBaseURL:        "https://identity.example",
+		IdentityClientID:       "nebula-calligraphy-web",
+		IdentityTenant:         "calligraphy",
 		IdentityJWKSURL:        "https://identity.example/.well-known/jwks.json",
 		ObjectStorageEndpoint:  "https://s3.example",
 		ObjectStorageBucket:    "calligraphy-prod",
@@ -224,6 +226,7 @@ func TestManagedRuntimeRequiresExplicitCorsOrigin(t *testing.T) {
 		ObjectStorageAccessKey: "access",
 		ObjectStorageSecretKey: "secret",
 		AuditSink:              "https://audit.example/events",
+		AuditHealthURL:         "https://audit.example/health/ready",
 		WebDir:                 fixtureWebDir(t),
 	}
 	router, err := newRouter(cfg)
@@ -265,14 +268,15 @@ func TestManagedRuntimeConfigExposesOnlyBrowserSafeAuthSettings(t *testing.T) {
 		IdentityAudience:       "nebula-calligraphy",
 		IdentityBaseURL:        "https://identity.example",
 		IdentityClientID:       "nebula-calligraphy-web",
+		IdentityTenant:         "calligraphy",
 		IdentityJWKSURL:        "https://identity.example/.well-known/jwks.json",
-		IdentityHS256Secret:    "server-secret",
 		ObjectStorageEndpoint:  "https://s3.example",
 		ObjectStorageBucket:    "calligraphy-prod",
 		ObjectStorageRegion:    "us-east-1",
 		ObjectStorageAccessKey: "access",
 		ObjectStorageSecretKey: "secret",
 		AuditSink:              "https://audit.example/events",
+		AuditHealthURL:         "https://audit.example/health/ready",
 		AuditToken:             "audit-token",
 		WebDir:                 fixtureWebDir(t),
 	})
@@ -293,6 +297,7 @@ func TestManagedRuntimeConfigExposesOnlyBrowserSafeAuthSettings(t *testing.T) {
 		`"auth_mode":"oidc-pkce"`,
 		`"identity_base_url":"https://identity.example"`,
 		`"identity_client_id":"nebula-calligraphy-web"`,
+		`"identity_tenant":"calligraphy"`,
 		`"identity_authorization_endpoint":"https://identity.example/api/v1/auth/authorize"`,
 		`"identity_token_endpoint":"https://identity.example/api/v1/auth/token"`,
 	} {
@@ -300,7 +305,7 @@ func TestManagedRuntimeConfigExposesOnlyBrowserSafeAuthSettings(t *testing.T) {
 			t.Fatalf("/runtime-config body = %s, want %s", body, want)
 		}
 	}
-	for _, forbidden := range []string{"server-secret", "audit-token", "secret"} {
+	for _, forbidden := range []string{"audit-token", "secret"} {
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("/runtime-config body leaks %q: %s", forbidden, body)
 		}
@@ -402,15 +407,18 @@ func TestManagedFoundationProfileRequiresExternalServices(t *testing.T) {
 		IdentityIssuer:         "nebula",
 		IdentityAudience:       "nebula-calligraphy",
 		IdentityBaseURL:        "https://identity.example",
+		IdentityClientID:       "nebula-calligraphy-web",
+		IdentityTenant:         "calligraphy",
 		ObjectStorageEndpoint:  "https://s3.example",
 		ObjectStorageBucket:    "calligraphy-prod",
 		ObjectStorageRegion:    "us-east-1",
 		ObjectStorageAccessKey: "access",
 		ObjectStorageSecretKey: "secret",
 		AuditSink:              "https://audit.example/events",
+		AuditHealthURL:         "https://audit.example/health/ready",
 		WebDir:                 fixtureWebDir(t),
 	})
-	if err == nil || !strings.Contains(err.Error(), "CALLIGRAPHY_IDENTITY_JWKS_URL or CALLIGRAPHY_IDENTITY_HS256_SECRET") {
+	if err == nil || !strings.Contains(err.Error(), "CALLIGRAPHY_IDENTITY_JWKS_URL") {
 		t.Fatalf("newRouter(managed without identity verifier config) error = %v, want identity verifier config error", err)
 	}
 
@@ -421,6 +429,8 @@ func TestManagedFoundationProfileRequiresExternalServices(t *testing.T) {
 		IdentityIssuer:         "https://identity.example",
 		IdentityAudience:       "nebula-calligraphy",
 		IdentityBaseURL:        "https://identity.example",
+		IdentityClientID:       "nebula-calligraphy-web",
+		IdentityTenant:         "calligraphy",
 		IdentityJWKSURL:        "https://identity.example/.well-known/jwks.json",
 		ObjectStorageEndpoint:  "https://s3.example",
 		ObjectStorageBucket:    "calligraphy-prod",
@@ -428,6 +438,7 @@ func TestManagedFoundationProfileRequiresExternalServices(t *testing.T) {
 		ObjectStorageAccessKey: "access",
 		ObjectStorageSecretKey: "secret",
 		AuditSink:              "https://audit.example/events",
+		AuditHealthURL:         "https://audit.example/health/ready",
 		WebDir:                 fixtureWebDir(t),
 	})
 	if err != nil {
@@ -452,6 +463,36 @@ func TestManagedFoundationProfileRequiresExternalServices(t *testing.T) {
 	router.ServeHTTP(registerRec, registerReq)
 	if registerRec.Code != http.StatusNotFound {
 		t.Fatalf("managed local register status = %d, want 404: %s", registerRec.Code, registerRec.Body.String())
+	}
+}
+
+func TestManagedAuthenticationDefaultsToOIDCPKCEAndRejectsDirectMode(t *testing.T) {
+	if got := runtimeAuthMode(appConfig{RuntimeProfile: "managed"}); got != "oidc-pkce" {
+		t.Fatalf("runtimeAuthMode(managed) = %q, want oidc-pkce", got)
+	}
+
+	cfg := appConfig{
+		RuntimeProfile:         "managed",
+		GlyphManifestFile:      fixtureGlyphManifest(t),
+		DatabaseURL:            "postgres://calligraphy@example/calligraphy",
+		AuthMode:               "nebula-direct",
+		IdentityIssuer:         "https://identity.example",
+		IdentityAudience:       "nebula-calligraphy",
+		IdentityBaseURL:        "https://identity.example",
+		IdentityTenant:         "calligraphy",
+		IdentityJWKSURL:        "https://identity.example/.well-known/jwks.json",
+		ObjectStorageEndpoint:  "https://s3.example",
+		ObjectStorageBucket:    "calligraphy-prod",
+		ObjectStorageRegion:    "us-east-1",
+		ObjectStorageAccessKey: "access",
+		ObjectStorageSecretKey: "secret",
+		AuditSink:              "https://audit.example/events",
+		AuditHealthURL:         "https://audit.example/health/ready",
+		WebDir:                 fixtureWebDir(t),
+	}
+	_, err := newRouter(cfg)
+	if err == nil || !strings.Contains(err.Error(), `unsupported CALLIGRAPHY_AUTH_MODE "nebula-direct"`) {
+		t.Fatalf("newRouter(managed direct auth) error = %v, want unsupported auth mode", err)
 	}
 }
 

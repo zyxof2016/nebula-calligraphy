@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_controller.dart';
 import 'calligraphy_api.dart';
 import 'models.dart';
+import 'oidc_client.dart';
 import 'session_store.dart';
 
 const calligraphyFontFallback = <String>[
@@ -42,8 +43,11 @@ class _CalligraphyAppState extends State<CalligraphyApp> {
     _controller =
         widget.controller ??
         CalligraphyController(
-          gateway: CalligraphyApi(baseUrl: Uri.parse(widget.apiBaseUrl)),
-          sessionStore: SharedPreferencesSessionStore(),
+          gateway: CalligraphyApi(
+            baseUrl: Uri.parse(widget.apiBaseUrl),
+            oidcAuthorizationClient: createOidcAuthorizationClient(),
+          ),
+          sessionStore: SecureSessionStore(),
           apiBaseUrl: widget.apiBaseUrl,
         );
     _controller.initialize();
@@ -149,23 +153,25 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
                 const SizedBox(height: 24),
-                TextField(
-                  controller: _username,
-                  decoration: const InputDecoration(
-                    labelText: '账号',
-                    border: OutlineInputBorder(),
+                if (!controller.usesInteractiveLogin) ...[
+                  TextField(
+                    controller: _username,
+                    decoration: const InputDecoration(
+                      labelText: '账号',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _password,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: '密码',
-                    border: OutlineInputBorder(),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _password,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: '密码',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
+                ],
                 if (controller.errorMessage != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
@@ -187,7 +193,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                 password: _password.text,
                               ),
                         icon: const Icon(Icons.login),
-                        label: const Text('登录'),
+                        label: Text(
+                          controller.usesInteractiveLogin ? '使用星云账号登录' : '登录',
+                        ),
                       ),
                     ),
                     if (controller.supportsRegistration) ...[

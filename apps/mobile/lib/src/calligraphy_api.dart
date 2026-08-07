@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'models.dart';
+import 'oidc_client_contract.dart';
 
 abstract class CalligraphyGateway {
   void setBearerToken(String? token);
@@ -65,11 +66,15 @@ class ApiException implements Exception {
 }
 
 class CalligraphyApi implements CalligraphyGateway {
-  CalligraphyApi({required this.baseUrl, http.Client? client})
-    : _client = client ?? http.Client();
+  CalligraphyApi({
+    required this.baseUrl,
+    http.Client? client,
+    this.oidcAuthorizationClient,
+  }) : _client = client ?? http.Client();
 
   final Uri baseUrl;
   final http.Client _client;
+  final OidcAuthorizationClient? oidcAuthorizationClient;
   String? _bearerToken;
   RuntimeConfig? _runtimeConfig;
 
@@ -93,15 +98,11 @@ class CalligraphyApi implements CalligraphyGateway {
     required String password,
   }) async {
     final config = _runtimeConfig ?? await getRuntimeConfig();
-    if (config.authMode == 'nebula-direct') {
-      return _loginWithIdentity(config, username: username, password: password);
+    if (config.authMode == 'oidc-pkce') {
+      return _loginWithOidc(config);
     }
     if (config.authMode != 'local') {
-      throw const ApiException(
-        400,
-        'interactive_login_required',
-        '当前部署要求使用 OIDC 登录入口',
-      );
+      throw const ApiException(400, 'auth_mode_invalid', '当前认证模式不受支持');
     }
     final json = await _requestJson(
       'POST',
@@ -111,60 +112,34 @@ class CalligraphyApi implements CalligraphyGateway {
     return AuthSession.fromJson(json);
   }
 
-  Future<AuthSession> _loginWithIdentity(
-    RuntimeConfig config, {
-    required String username,
-    required String password,
-  }) async {
-    if (config.identityLoginEndpoint.isEmpty) {
+  Future<AuthSession> _loginWithOidc(RuntimeConfig config) async {
+    final authorizationClient = oidcAuthorizationClient;
+    if (authorizationClient == null) {
       throw const ApiException(
         503,
-        'identity_not_configured',
-        'Identity 登录端点未配置',
+        'oidc_client_unavailable',
+        '当前客户端未启用 OIDC 原生登录',
       );
     }
-    final response = await _client.post(
-      Uri.parse(config.identityLoginEndpoint),
-      headers: const {
-        'accept': 'application/json',
-        'content-type': 'application/json',
-      },
-      body: jsonEncode({'username': username, 'password': password}),
-    );
-    final payload = _decodeObject(response.body);
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException(
-        response.statusCode,
-        payload['code']?.toString() ?? 'identity_login_failed',
-        payload['message']?.toString() ?? 'Identity 登录失败',
-      );
-    }
-    final data = payload['data'];
-    final nested = data is Map<String, dynamic>
-        ? data
-        : const <String, dynamic>{};
-    final token =
-        payload['access_token']?.toString() ??
-        payload['token']?.toString() ??
-        nested['access_token']?.toString() ??
-        nested['token']?.toString() ??
-        '';
-    if (token.isEmpty) {
-      throw const ApiException(
-        502,
-        'identity_token_missing',
-        'Identity 未返回访问令牌',
-      );
-    }
+    final result = await authorizationClient.authorize(config);
+    return _identitySession(result.accessToken);
+  }
+
+  Future<AuthSession> _identitySession(String token) async {
     _bearerToken = token;
-    final user = User.fromJson(
-      await _requestJson('GET', '/api/v1/calligraphy/auth/me'),
-    );
-    return AuthSession(
-      token: token,
-      expiresAt: _jwtExpiresAt(token),
-      user: user,
-    );
+    try {
+      final user = User.fromJson(
+        await _requestJson('GET', '/api/v1/calligraphy/auth/me'),
+      );
+      return AuthSession(
+        token: token,
+        expiresAt: _jwtExpiresAt(token),
+        user: user,
+      );
+    } catch (_) {
+      _bearerToken = null;
+      rethrow;
+    }
   }
 
   @override
@@ -380,10 +355,11 @@ String _jwtExpiresAt(String token) {
       isUtc: true,
     ).toIso8601String();
   } catch (_) {
-    return DateTime.now()
-        .toUtc()
-        .add(const Duration(hours: 1))
-        .toIso8601String();
+    throw const ApiException(
+      502,
+      'identity_token_invalid',
+      'Identity 返回的访问令牌无效',
+    );
   }
 }
 

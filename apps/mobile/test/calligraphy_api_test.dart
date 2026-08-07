@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:nebula_calligraphy_app/src/calligraphy_api.dart';
 import 'package:nebula_calligraphy_app/src/models.dart';
+import 'package:nebula_calligraphy_app/src/oidc_client_contract.dart';
 
 void main() {
   test('login decodes expiring auth session', () async {
@@ -41,100 +42,106 @@ void main() {
     expect(session.expiresAt, '2026-07-29T10:00:00Z');
   });
 
-  test('managed login uses Nebula Identity direct endpoint', () async {
-    final jwt = [
-      base64Url
-          .encode(utf8.encode(jsonEncode({'alg': 'RS256'})))
-          .replaceAll('=', ''),
-      base64Url
-          .encode(
-            utf8.encode(
+  test(
+    'OIDC mode uses interactive PKCE result without collecting password',
+    () async {
+      final jwt = [
+        base64Url
+            .encode(utf8.encode(jsonEncode({'alg': 'RS256'})))
+            .replaceAll('=', ''),
+        base64Url
+            .encode(
+              utf8.encode(
+                jsonEncode({
+                  'sub': 'user-oidc',
+                  'exp':
+                      DateTime.now()
+                          .toUtc()
+                          .add(const Duration(minutes: 15))
+                          .millisecondsSinceEpoch ~/
+                      1000,
+                }),
+              ),
+            )
+            .replaceAll('=', ''),
+        'signature',
+      ].join('.');
+      final oidcClient = FakeOidcAuthorizationClient(jwt);
+      final api = CalligraphyApi(
+        baseUrl: Uri.parse('https://calligraphy.test'),
+        oidcAuthorizationClient: oidcClient,
+        client: MockClient((request) async {
+          if (request.url.path == '/api/v1/calligraphy/runtime-config') {
+            return http.Response(
               jsonEncode({
-                'sub': 'user-1',
-                'exp':
-                    DateTime.now()
-                        .toUtc()
-                        .add(const Duration(hours: 1))
-                        .millisecondsSinceEpoch ~/
-                    1000,
+                'runtime_profile': 'managed',
+                'auth_mode': 'oidc-pkce',
+                'identity_client_id': 'nebula-calligraphy-web',
+                'identity_tenant': 'tenant-a',
+                'identity_authorization_endpoint':
+                    'https://identity.test/api/v1/auth/authorize',
+                'identity_token_endpoint':
+                    'https://identity.test/api/v1/auth/token',
               }),
-            ),
-          )
-          .replaceAll('=', ''),
-      'signature',
-    ].join('.');
-    final api = CalligraphyApi(
-      baseUrl: Uri.parse('https://calligraphy.test'),
-      client: MockClient((request) async {
+              200,
+            );
+          }
+          if (request.url.path == '/api/v1/calligraphy/auth/me') {
+            expect(request.headers['authorization'], 'Bearer $jwt');
+            return http.Response(
+              jsonEncode({
+                'user_id': 'user-oidc',
+                'username': 'oidc-user',
+                'created_at': '',
+              }),
+              200,
+            );
+          }
+          return http.Response('not found', 404);
+        }),
+      );
+
+      final session = await api.login(username: 'ignored', password: 'ignored');
+
+      expect(oidcClient.receivedConfig?.identityTenant, 'tenant-a');
+      expect(session.token, jwt);
+      expect(session.user.username, 'oidc-user');
+    },
+  );
+
+  test(
+    'unsupported managed auth mode fails without submitting credentials',
+    () async {
+      var requestCount = 0;
+      final client = MockClient((request) async {
+        requestCount++;
         if (request.url.path == '/api/v1/calligraphy/runtime-config') {
           return http.Response(
             jsonEncode({
               'runtime_profile': 'managed',
-              'auth_mode': 'nebula-direct',
-              'identity_login_endpoint':
-                  'https://identity.test/api/v1/auth/login',
+              'auth_mode': 'unsupported',
             }),
             200,
           );
         }
-        if (request.url.host == 'identity.test') {
-          expect(request.method, 'POST');
-          return http.Response(jsonEncode({'access_token': jwt}), 200);
-        }
-        if (request.url.path == '/api/v1/calligraphy/auth/me') {
-          expect(request.headers['authorization'], 'Bearer $jwt');
-          return http.Response(
-            jsonEncode({
-              'user_id': 'user-1',
-              'username': 'learner',
-              'created_at': '',
-            }),
-            200,
-          );
-        }
-        return http.Response('not found', 404);
-      }),
-    );
+        return http.Response('unexpected', 500);
+      });
+      final api = CalligraphyApi(
+        baseUrl: Uri.parse('https://calligraphy.example'),
+        client: client,
+      );
 
-    final session = await api.login(username: 'learner', password: 'secret123');
-
-    expect(session.token, jwt);
-    expect(session.user.userId, 'user-1');
-    expect(DateTime.parse(session.expiresAt).isAfter(DateTime.now()), isTrue);
-  });
-
-  test('identity non-json failure remains a readable API error', () async {
-    final client = MockClient((request) async {
-      if (request.url.path == '/api/v1/calligraphy/runtime-config') {
-        return http.Response(
-          jsonEncode({
-            'runtime_profile': 'managed',
-            'auth_mode': 'nebula-direct',
-            'identity_login_endpoint': 'https://identity.example/login',
-          }),
-          200,
-        );
-      }
-      return http.Response('upstream unavailable', 503);
-    });
-    final api = CalligraphyApi(
-      baseUrl: Uri.parse('https://calligraphy.example'),
-      client: client,
-    );
-
-    await expectLater(
-      api.login(username: 'learner', password: 'secret123'),
-      throwsA(
-        isA<ApiException>()
-            .having((error) => error.statusCode, 'statusCode', 503)
-            .having(
-              (error) => error.message,
-              'message',
-              'upstream unavailable',
-            ),
-      ),
-    );
-  });
+      await expectLater(
+        api.login(username: 'learner', password: 'secret123'),
+        throwsA(
+          isA<ApiException>()
+              .having((error) => error.statusCode, 'statusCode', 400)
+              .having((error) => error.code, 'code', 'auth_mode_invalid'),
+        ),
+      );
+      expect(requestCount, 1);
+    },
+  );
 
   test('searchGlyphs decodes glyph list from the service contract', () async {
     final api = CalligraphyApi(
@@ -348,4 +355,17 @@ void main() {
     expect(profile.dailySteps.single.completed, isFalse);
     expect(profile.todayPracticeCount, 0);
   });
+}
+
+class FakeOidcAuthorizationClient implements OidcAuthorizationClient {
+  FakeOidcAuthorizationClient(this.token);
+
+  final String token;
+  RuntimeConfig? receivedConfig;
+
+  @override
+  Future<OidcAuthorizationResult> authorize(RuntimeConfig config) async {
+    receivedConfig = config;
+    return OidcAuthorizationResult(accessToken: token);
+  }
 }

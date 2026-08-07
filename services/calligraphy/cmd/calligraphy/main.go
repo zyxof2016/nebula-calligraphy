@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -78,11 +79,10 @@ type appConfig struct {
 	IdentityAudience       string
 	IdentityBaseURL        string
 	IdentityClientID       string
+	IdentityTenant         string
 	IdentityAuthorizeURL   string
 	IdentityTokenURL       string
-	IdentityLoginURL       string
 	IdentityJWKSURL        string
-	IdentityHS256Secret    string
 	ObjectStorageEndpoint  string
 	ObjectStorageBucket    string
 	ObjectStorageRegion    string
@@ -90,6 +90,7 @@ type appConfig struct {
 	ObjectStorageSecretKey string
 	ObjectStorageToken     string
 	AuditSink              string
+	AuditHealthURL         string
 	AuditToken             string
 	AllowedOrigins         string
 }
@@ -129,11 +130,10 @@ func loadConfig() appConfig {
 		IdentityAudience:       os.Getenv("CALLIGRAPHY_IDENTITY_AUDIENCE"),
 		IdentityBaseURL:        os.Getenv("CALLIGRAPHY_IDENTITY_BASE_URL"),
 		IdentityClientID:       os.Getenv("CALLIGRAPHY_IDENTITY_CLIENT_ID"),
+		IdentityTenant:         os.Getenv("CALLIGRAPHY_IDENTITY_TENANT"),
 		IdentityAuthorizeURL:   os.Getenv("CALLIGRAPHY_IDENTITY_AUTHORIZATION_ENDPOINT"),
 		IdentityTokenURL:       os.Getenv("CALLIGRAPHY_IDENTITY_TOKEN_ENDPOINT"),
-		IdentityLoginURL:       os.Getenv("CALLIGRAPHY_IDENTITY_LOGIN_ENDPOINT"),
 		IdentityJWKSURL:        os.Getenv("CALLIGRAPHY_IDENTITY_JWKS_URL"),
-		IdentityHS256Secret:    os.Getenv("CALLIGRAPHY_IDENTITY_HS256_SECRET"),
 		ObjectStorageEndpoint:  os.Getenv("CALLIGRAPHY_OBJECT_STORAGE_ENDPOINT"),
 		ObjectStorageBucket:    os.Getenv("CALLIGRAPHY_OBJECT_STORAGE_BUCKET"),
 		ObjectStorageRegion:    os.Getenv("CALLIGRAPHY_OBJECT_STORAGE_REGION"),
@@ -141,6 +141,7 @@ func loadConfig() appConfig {
 		ObjectStorageSecretKey: os.Getenv("CALLIGRAPHY_OBJECT_STORAGE_SECRET_KEY"),
 		ObjectStorageToken:     os.Getenv("CALLIGRAPHY_OBJECT_STORAGE_SESSION_TOKEN"),
 		AuditSink:              os.Getenv("CALLIGRAPHY_AUDIT_SINK"),
+		AuditHealthURL:         os.Getenv("CALLIGRAPHY_AUDIT_HEALTH_URL"),
 		AuditToken:             os.Getenv("CALLIGRAPHY_AUDIT_TOKEN"),
 		AllowedOrigins:         os.Getenv("CALLIGRAPHY_ALLOWED_ORIGINS"),
 	}
@@ -197,19 +198,20 @@ func newRouter(cfg appConfig) (http.Handler, error) {
 	learningService := service.NewLearningService(learningStore, catalog)
 	learningService.SetLearningLocation(learningLocation)
 	identityVerifier := newIdentityVerifier(cfg, authService)
+	auditLogger := newAuditLogger(cfg)
 	calligraphyHandler := handler.New(
 		catalog,
 		layout,
 		artworkService,
 		learningService,
 		authService,
-		newAuditLogger(cfg),
+		auditLogger,
 		identityVerifier,
 	)
 	calligraphyHandler.SetGlyphRenderer(service.NewGlyphImageRenderer(cfg.RenderFontFile, cfg.RenderCacheDir))
 	calligraphyHandler.SetLocalAuthEnabled(cfg.RuntimeProfile != "managed")
 	handler.RegisterRoutes(router, calligraphyHandler)
-	readinessDependencies := newReadinessDependencies(cfg, postgresDB, artifactStore, identityVerifier)
+	readinessDependencies := newReadinessDependencies(cfg, postgresDB, artifactStore, identityVerifier, auditLogger)
 	router.Get("/ready", func(w http.ResponseWriter, r *http.Request) {
 		writeReadiness(w, r, cfg, readinessDependencies)
 	})
@@ -323,28 +325,30 @@ func validateConfig(cfg appConfig) error {
 			"CALLIGRAPHY_IDENTITY_ISSUER":           cfg.IdentityIssuer,
 			"CALLIGRAPHY_IDENTITY_AUDIENCE":         cfg.IdentityAudience,
 			"CALLIGRAPHY_IDENTITY_BASE_URL":         cfg.IdentityBaseURL,
+			"CALLIGRAPHY_IDENTITY_TENANT":           cfg.IdentityTenant,
+			"CALLIGRAPHY_IDENTITY_JWKS_URL":         cfg.IdentityJWKSURL,
 			"CALLIGRAPHY_OBJECT_STORAGE_ENDPOINT":   cfg.ObjectStorageEndpoint,
 			"CALLIGRAPHY_OBJECT_STORAGE_BUCKET":     cfg.ObjectStorageBucket,
 			"CALLIGRAPHY_OBJECT_STORAGE_REGION":     cfg.ObjectStorageRegion,
 			"CALLIGRAPHY_OBJECT_STORAGE_ACCESS_KEY": cfg.ObjectStorageAccessKey,
 			"CALLIGRAPHY_OBJECT_STORAGE_SECRET_KEY": cfg.ObjectStorageSecretKey,
 			"CALLIGRAPHY_AUDIT_SINK":                cfg.AuditSink,
+			"CALLIGRAPHY_AUDIT_HEALTH_URL":          cfg.AuditHealthURL,
 			"CALLIGRAPHY_WEB_DIR":                   cfg.WebDir,
 			"CALLIGRAPHY_GLYPH_MANIFEST_FILE":       cfg.GlyphManifestFile,
 		}); err != nil {
 			return err
 		}
-		if cfg.IdentityJWKSURL == "" && cfg.IdentityHS256Secret == "" {
-			return errors.New("managed profile requires CALLIGRAPHY_IDENTITY_JWKS_URL or CALLIGRAPHY_IDENTITY_HS256_SECRET")
+		if !regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,49}$`).MatchString(cfg.IdentityTenant) {
+			return errors.New("CALLIGRAPHY_IDENTITY_TENANT must be a lowercase tenant slug")
 		}
 		if !strings.HasPrefix(cfg.AuditSink, "http://") && !strings.HasPrefix(cfg.AuditSink, "https://") {
 			return errors.New("managed profile requires CALLIGRAPHY_AUDIT_SINK to be an http or https URL")
 		}
+		if !strings.HasPrefix(cfg.AuditHealthURL, "http://") && !strings.HasPrefix(cfg.AuditHealthURL, "https://") {
+			return errors.New("managed profile requires CALLIGRAPHY_AUDIT_HEALTH_URL to be an http or https URL")
+		}
 		switch runtimeAuthMode(cfg) {
-		case "nebula-direct":
-			if identityEndpoint(cfg.IdentityBaseURL, "/api/v1/auth/login", cfg.IdentityLoginURL) == "" {
-				return errors.New("managed nebula-direct auth requires CALLIGRAPHY_IDENTITY_BASE_URL or CALLIGRAPHY_IDENTITY_LOGIN_ENDPOINT")
-			}
 		case "oidc-pkce":
 			if err := validateRequired("managed oidc-pkce auth requires browser OIDC settings", map[string]string{
 				"CALLIGRAPHY_IDENTITY_CLIENT_ID":              cfg.IdentityClientID,
@@ -414,8 +418,8 @@ func writeReadiness(w http.ResponseWriter, r *http.Request, cfg appConfig, depen
 	})
 }
 
-func newReadinessDependencies(cfg appConfig, db *sql.DB, artifacts service.ArtifactStore, identity service.IdentityVerifier) []readinessDependency {
-	dependencies := make([]readinessDependency, 0, 4)
+func newReadinessDependencies(cfg appConfig, db *sql.DB, artifacts service.ArtifactStore, identity service.IdentityVerifier, audit service.AuditLogger) []readinessDependency {
+	dependencies := make([]readinessDependency, 0, 5)
 	if cfg.RuntimeProfile == "production" {
 		dependencies = append(dependencies, readinessDependency{
 			name: "persistent_storage",
@@ -457,6 +461,9 @@ func newReadinessDependencies(cfg appConfig, db *sql.DB, artifacts service.Artif
 	}
 	if checker, ok := identity.(interface{ Check(context.Context) error }); ok {
 		dependencies = append(dependencies, readinessDependency{name: "identity", check: checker.Check})
+	}
+	if checker, ok := audit.(interface{ Check(context.Context) error }); ok {
+		dependencies = append(dependencies, readinessDependency{name: "audit", check: checker.Check})
 	}
 	if cfg.RuntimeProfile == "production" || cfg.RuntimeProfile == "managed" {
 		dependencies = append(dependencies, readinessDependency{
@@ -552,9 +559,9 @@ type publicRuntimeConfig struct {
 	AuthMode                      string `json:"auth_mode"`
 	IdentityBaseURL               string `json:"identity_base_url,omitempty"`
 	IdentityClientID              string `json:"identity_client_id,omitempty"`
+	IdentityTenant                string `json:"identity_tenant,omitempty"`
 	IdentityAuthorizationEndpoint string `json:"identity_authorization_endpoint,omitempty"`
 	IdentityTokenEndpoint         string `json:"identity_token_endpoint,omitempty"`
-	IdentityLoginEndpoint         string `json:"identity_login_endpoint,omitempty"`
 }
 
 func writeRuntimeConfig(w http.ResponseWriter, cfg appConfig) {
@@ -568,9 +575,9 @@ func writeRuntimeConfig(w http.ResponseWriter, cfg appConfig) {
 		AuthMode:                      runtimeAuthMode(cfg),
 		IdentityBaseURL:               cfg.IdentityBaseURL,
 		IdentityClientID:              cfg.IdentityClientID,
+		IdentityTenant:                cfg.IdentityTenant,
 		IdentityAuthorizationEndpoint: identityEndpoint(cfg.IdentityBaseURL, "/api/v1/auth/authorize", cfg.IdentityAuthorizeURL),
 		IdentityTokenEndpoint:         identityEndpoint(cfg.IdentityBaseURL, "/api/v1/auth/token", cfg.IdentityTokenURL),
-		IdentityLoginEndpoint:         identityEndpoint(cfg.IdentityBaseURL, "/api/v1/auth/login", cfg.IdentityLoginURL),
 	}
 	_ = json.NewEncoder(w).Encode(payload)
 }
@@ -581,7 +588,7 @@ func runtimeAuthMode(cfg appConfig) string {
 		return mode
 	}
 	if cfg.RuntimeProfile == "managed" {
-		return "nebula-direct"
+		return "oidc-pkce"
 	}
 	return "local"
 }
@@ -616,7 +623,6 @@ func cspConnectSources(cfg appConfig) []string {
 		cfg.IdentityBaseURL,
 		cfg.IdentityAuthorizeURL,
 		cfg.IdentityTokenURL,
-		cfg.IdentityLoginURL,
 	} {
 		origin := urlOrigin(rawURL)
 		if origin == "" || seen[origin] {
@@ -754,8 +760,9 @@ func newArtifactStore(cfg appConfig) service.ArtifactStore {
 func newAuditLogger(cfg appConfig) service.AuditLogger {
 	if cfg.RuntimeProfile == "managed" {
 		return service.NewHTTPAuditLogger(service.HTTPAuditLoggerConfig{
-			Endpoint:    cfg.AuditSink,
-			BearerToken: cfg.AuditToken,
+			Endpoint:       cfg.AuditSink,
+			HealthEndpoint: cfg.AuditHealthURL,
+			BearerToken:    cfg.AuditToken,
 		})
 	}
 	if cfg.AuditFile == "" {
@@ -767,13 +774,6 @@ func newAuditLogger(cfg appConfig) service.AuditLogger {
 func newIdentityVerifier(cfg appConfig, fallback service.IdentityVerifier) service.IdentityVerifier {
 	if cfg.RuntimeProfile != "managed" {
 		return fallback
-	}
-	if cfg.IdentityHS256Secret != "" {
-		return service.NewNebulaJWTIdentityVerifier(service.NebulaJWTIdentityConfig{
-			Issuer:   cfg.IdentityIssuer,
-			Audience: cfg.IdentityAudience,
-			Secret:   cfg.IdentityHS256Secret,
-		})
 	}
 	return service.NewJWKSIdentityVerifier(service.JWKSIdentityConfig{
 		Issuer:   cfg.IdentityIssuer,

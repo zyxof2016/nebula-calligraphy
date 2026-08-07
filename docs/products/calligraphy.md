@@ -43,7 +43,7 @@ Nebula Calligraphy 是面向 C 端的 AI 书法学习与集字创作应用。它
 | `GET /artifacts/{storage_key}` | 已实现 | 配置 `CALLIGRAPHY_EXPORT_DIR` 后提供本地 PNG/SVG 导出下载 |
 | Flutter Web 工作台 | 已实现 | 通过 `CALLIGRAPHY_WEB_DIR` 托管 Flutter Web；支持登录/注册、常用字、查字/详情、练习、学习档案、章法预览、草稿和 PNG/SVG 导出。`web/app` 保留为轻量兼容客户端 |
 
-该服务可将本地用户、草稿、学习记录、审计日志和 PNG/SVG 导出保存到本地文件，用于受控生产试用。所有持久化错误会返回 `503`，不会把写入失败伪装成成功。本地密码使用 Argon2id，会话默认 24 小时过期。托管模式关闭本地认证端点，使用 PostgreSQL、S3 兼容对象存储、Nebula Identity 和 HTTP 审计服务，并对 Identity 令牌校验签名、issuer、audience、exp 和 nbf。Flutter 托管登录默认使用 `nebula-direct`，且必须通过 HTTPS。面向商业生产仍需要授权碑帖批量入库和专家审校后台。
+该服务可将本地用户、草稿、学习记录、审计日志和 PNG/SVG 导出保存到本地文件，用于受控生产试用。所有持久化错误会返回 `503`，不会把写入失败伪装成成功。本地密码使用 Argon2id，会话默认 24 小时过期。托管模式关闭本地认证端点，使用 PostgreSQL、S3 兼容对象存储、Nebula Identity 和 HTTP 审计服务，并对 Identity RS256 access token 校验签名、issuer、资源 audience、exp 和 nbf。轻量 Web 与 Flutter Android/iOS 均使用 OIDC PKCE，移动端通过系统浏览器回调并将会话保存在平台安全存储中。面向商业生产仍需要授权碑帖批量入库和专家审校后台。
 
 ## 视觉和字体策略
 

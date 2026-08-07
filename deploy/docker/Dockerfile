@@ -1,4 +1,4 @@
-FROM golang:1.25.12-alpine AS backend
+FROM golang:1.25.12-alpine@sha256:56961d79ea8129efddcc0b8643fd8a5416b4e6228cfd477e3fd61deb2672c587 AS backend
 
 WORKDIR /src
 COPY services/calligraphy/go.mod services/calligraphy/go.sum ./
@@ -7,7 +7,7 @@ COPY services/calligraphy/ ./
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/calligraphy ./cmd/calligraphy
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/calligraphy-migrate ./cmd/calligraphy-migrate
 
-FROM alpine:3.21
+FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S -g 10001 calligraphy \

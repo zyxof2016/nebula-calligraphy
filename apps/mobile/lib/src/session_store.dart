@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'models.dart';
 
@@ -59,28 +59,36 @@ class MemorySessionStore implements SessionStore {
   }
 }
 
-class SharedPreferencesSessionStore implements SessionStore {
+class SecureSessionStore implements SessionStore {
   static const _key = 'nebula_calligraphy_session';
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(storageNamespace: 'nebula_calligraphy'),
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+  );
 
   @override
   Future<StoredSession?> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key);
+    final raw = await _storage.read(key: _key);
     if (raw == null || raw.isEmpty) {
       return null;
     }
-    return StoredSession.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    try {
+      return StoredSession.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      await _storage.delete(key: _key);
+      return null;
+    }
   }
 
   @override
   Future<void> save(StoredSession session) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode(session.toJson()));
+    await _storage.write(key: _key, value: jsonEncode(session.toJson()));
   }
 
   @override
   Future<void> clear() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_key);
+    await _storage.delete(key: _key);
   }
 }

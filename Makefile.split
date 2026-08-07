@@ -1,15 +1,42 @@
 .PHONY: split-check
 split-check:
+	@! awk '/^FROM / && $$0 !~ /@sha256:/' deploy/docker/Dockerfile | grep .
 	@echo "contract json check"
 	@find docs/contracts -name '*.json' -print0 | xargs -0 -r -n 1 python3 -m json.tool >/dev/null
 	@echo "web app asset check"
 	@test -f web/app/index.html
 	@test -f web/app/styles.css
 	@test -f web/app/app.js
+	@grep -q "releaseTaskRequested && !releaseSigningConfigured" apps/mobile/android/app/build.gradle.kts
+	@grep -q "Release builds require an HTTPS CALLIGRAPHY_API_BASE_URL" apps/mobile/android/app/build.gradle.kts
+	@grep -q "Release builds require a valid CALLIGRAPHY_OIDC_CLIENT_ID" apps/mobile/android/app/build.gradle.kts
+	@grep -q "Release builds cannot enable CALLIGRAPHY_ALLOW_INSECURE_OIDC" apps/mobile/android/app/build.gradle.kts
+	@grep -q "kReleaseMode" apps/mobile/lib/main.dart
+	@grep -q "_allowInsecureOidc && !kReleaseMode" apps/mobile/lib/src/oidc_client_native.dart
+	@grep -q 'com.nebula.calligraphy:/oauthredirect' .github/workflows/release-android.yml
+	@grep -q 'CALLIGRAPHY_OIDC_CLIENT_ID' .github/workflows/release-android.yml
+	@grep -q "AAB signature verified" .github/workflows/release-android.yml
+	@grep -q "60 \* 1024 \* 1024" .github/workflows/release-android.yml
+	@! grep -q 'signingConfig = signingConfigs.getByName("debug")' apps/mobile/android/app/build.gradle.kts
+	@grep -q 'android:usesCleartextTraffic="false"' apps/mobile/android/app/src/main/AndroidManifest.xml
+	@grep -q 'android:allowBackup="false"' apps/mobile/android/app/src/main/AndroidManifest.xml
+	@grep -q 'com.nebula.calligraphy' apps/mobile/ios/Runner/Info.plist
+	@test -f apps/mobile/ios/Podfile
+	@grep -q "platform :ios, '13.0'" apps/mobile/ios/Podfile
+	@grep -q 'PRODUCT_BUNDLE_IDENTIFIER = com.nebula.calligraphy;' apps/mobile/ios/Runner.xcodeproj/project.pbxproj
+	@grep -q 'keychain-access-groups' apps/mobile/ios/Runner/Runner.entitlements
+	@grep -q 'flutter build ios --release --no-codesign' .github/workflows/ci.yml
+	@grep -q 'flutter_secure_storage:' apps/mobile/pubspec.yaml
+	@grep -q 'flutter_appauth:' apps/mobile/pubspec.yaml
+	@! grep -R -q 'nebula-direct' README.md apps/mobile/README.md web docs deploy
 	@if command -v node >/dev/null 2>&1; then node --check web/app/app.js >/dev/null; else echo "node not found, skip web js syntax check"; fi
 	@if command -v node >/dev/null 2>&1; then node scripts/calligraphy-web-auth-test.mjs; else echo "node not found, skip web auth flow test"; fi
 	@echo "shell script syntax check"
 	@find scripts -name '*.sh' -print0 | xargs -0 -r -n 1 bash -n
+	@echo "helm production render check"
+	@helm lint deploy/helm/nebula-calligraphy
+	@if helm template calligraphy-invalid deploy/helm/nebula-calligraphy --set production.requireImageDigest=true >/dev/null 2>&1; then echo "production placeholder image digest must be rejected"; exit 1; fi
+	@helm template calligraphy deploy/helm/nebula-calligraphy --set production.requireImageDigest=true --set image.digest=sha256:1111111111111111111111111111111111111111111111111111111111111111 >/tmp/nebula-calligraphy-helm.yaml
 	@echo "calligraphy service tests"
 	@cd services/calligraphy && GOCACHE=/tmp/nebula-calligraphy-go-cache go test ./...
 

@@ -191,11 +191,6 @@ function makeContext({ runtimeConfig, locationSearch = "" }) {
       }
       if (String(path).startsWith("/api/v1/calligraphy/glyphs/search")) return jsonResponse({ items: [] });
       if (String(path).startsWith("/api/v1/calligraphy/glyphs/presets")) return jsonResponse({ items: [] });
-      if (path === "https://identity.example/api/v1/auth/login") {
-        const body = JSON.parse(options.body);
-        assert.deepEqual(body, { username: "learner", password: "secret123" });
-        return jsonResponse({ data: { access_token: "identity-token" } });
-      }
       if (path === "https://identity.example/api/v1/auth/token") {
         const body = new URLSearchParams(options.body);
         assert.equal(body.get("grant_type"), "authorization_code");
@@ -207,7 +202,7 @@ function makeContext({ runtimeConfig, locationSearch = "" }) {
       }
       if (path === "/api/v1/calligraphy/auth/me") {
         const authHeader = options.headers.Authorization;
-        assert.ok(["Bearer identity-token", "Bearer oidc-token"].includes(authHeader));
+        assert.equal(authHeader, "Bearer oidc-token");
         return jsonResponse({ user_id: "nebula-user-1", username: "nebula-user-1", created_at: "" });
       }
       if (String(path).startsWith("/api/v1/calligraphy/artworks/drafts")) return jsonResponse({ items: [] });
@@ -228,23 +223,6 @@ async function loadApp(env) {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-const directEnv = makeContext({
-  runtimeConfig: {
-    runtime_profile: "managed",
-    auth_mode: "nebula-direct",
-    identity_login_endpoint: "https://identity.example/api/v1/auth/login",
-  },
-});
-await loadApp(directEnv);
-await directEnv.context.loginWithNebulaIdentity();
-
-assert.equal(directEnv.sessionStorage.values.get("calligraphy.auth_token"), "identity-token");
-assert.equal(directEnv.localStorage.values.has("calligraphy.auth_token"), false);
-assert.equal(directEnv.elements.get("ownerUserId").value, "nebula-user-1");
-assert.equal(directEnv.elements.get("authMode").textContent, "认证模式：Nebula Identity");
-assert.equal(directEnv.elements.get("registerButton").hidden, true);
-assert.equal(directEnv.elements.get("loginButton").textContent, "Identity 登录");
-
 const pkceStartEnv = makeContext({
   runtimeConfig: {
     runtime_profile: "managed",
@@ -252,6 +230,7 @@ const pkceStartEnv = makeContext({
     identity_client_id: "nebula-calligraphy-web",
     identity_authorization_endpoint: "https://identity.example/api/v1/auth/authorize",
     identity_token_endpoint: "https://identity.example/api/v1/auth/token",
+    identity_tenant: "calligraphy",
   },
 });
 await loadApp(pkceStartEnv);
@@ -264,6 +243,7 @@ assert.equal(authURL.searchParams.get("response_type"), "code");
 assert.equal(authURL.searchParams.get("client_id"), "nebula-calligraphy-web");
 assert.equal(authURL.searchParams.get("redirect_uri"), "https://calligraphy.example/");
 assert.equal(authURL.searchParams.get("code_challenge_method"), "S256");
+assert.equal(authURL.searchParams.get("tenant"), "calligraphy");
 assert.ok(authURL.searchParams.get("code_challenge"));
 assert.ok(pkceStartEnv.sessionStorage.values.get("calligraphy.pkce_verifier"));
 
@@ -275,6 +255,7 @@ const pkceCallbackEnv = makeContext({
     identity_client_id: "nebula-calligraphy-web",
     identity_authorization_endpoint: "https://identity.example/api/v1/auth/authorize",
     identity_token_endpoint: "https://identity.example/api/v1/auth/token",
+    identity_tenant: "calligraphy",
   },
   locationSearch: `?code=auth-code&state=${callbackState}`,
 });

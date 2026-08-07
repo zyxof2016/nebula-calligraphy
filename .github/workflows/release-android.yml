@@ -1,0 +1,112 @@
+name: Release Android
+
+on:
+  push:
+    tags:
+      - "android-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without the v prefix
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: calligraphy-android-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: production
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version-file: .flutter-version
+          cache: true
+
+      - name: Validate release secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.CALLIGRAPHY_ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.CALLIGRAPHY_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.CALLIGRAPHY_ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.CALLIGRAPHY_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64"
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/calligraphy.jks"
+
+      - name: Verify source
+        working-directory: apps/mobile
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+
+      - name: Build signed app bundle
+        working-directory: apps/mobile
+        env:
+          CALLIGRAPHY_ANDROID_KEYSTORE: ${{ runner.temp }}/calligraphy.jks
+          CALLIGRAPHY_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.CALLIGRAPHY_ANDROID_KEYSTORE_PASSWORD }}
+          CALLIGRAPHY_ANDROID_KEY_ALIAS: ${{ secrets.CALLIGRAPHY_ANDROID_KEY_ALIAS }}
+          CALLIGRAPHY_ANDROID_KEY_PASSWORD: ${{ secrets.CALLIGRAPHY_ANDROID_KEY_PASSWORD }}
+          API_BASE_URL: ${{ vars.CALLIGRAPHY_API_BASE_URL }}
+          OIDC_CLIENT_ID: ${{ vars.CALLIGRAPHY_OIDC_CLIENT_ID }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          [[ "$API_BASE_URL" == https://* ]]
+          [[ "$OIDC_CLIENT_ID" =~ ^[A-Za-z0-9._-]{1,128}$ ]]
+          version="${GITHUB_REF_NAME#android-v}"
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then version="$INPUT_VERSION"; fi
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]
+          flutter build appbundle --release \
+            --build-name "$version" \
+            --build-number "$GITHUB_RUN_NUMBER" \
+            --dart-define="CALLIGRAPHY_API_BASE_URL=$API_BASE_URL" \
+            --dart-define="CALLIGRAPHY_OIDC_CLIENT_ID=$OIDC_CLIENT_ID" \
+            --dart-define="CALLIGRAPHY_OIDC_REDIRECT_URI=com.nebula.calligraphy:/oauthredirect"
+          bundle=build/app/outputs/bundle/release/app-release.aab
+          bundle_size=$(stat -c '%s' "$bundle")
+          test "$bundle_size" -le $((60 * 1024 * 1024)) || {
+            echo "AAB exceeds the 60 MiB release budget: $bundle_size bytes" >&2
+            exit 1
+          }
+          verification_log="$RUNNER_TEMP/calligraphy-jarsigner.log"
+          if ! jarsigner -verify "$bundle" >"$verification_log" 2>&1 || \
+             ! grep -q '^jar verified' "$verification_log"; then
+            cat "$verification_log"
+            exit 1
+          fi
+          echo "AAB signature verified"
+          sha256sum "$bundle" > "$bundle.sha256"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: calligraphy-android-${{ github.run_number }}
+          path: |
+            apps/mobile/build/app/outputs/bundle/release/app-release.aab
+            apps/mobile/build/app/outputs/bundle/release/app-release.aab.sha256
+          if-no-files-found: error
+
+      - name: Publish tag release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            apps/mobile/build/app/outputs/bundle/release/app-release.aab \
+            apps/mobile/build/app/outputs/bundle/release/app-release.aab.sha256 \
+            --verify-tag --generate-notes --title "星云书法 ${GITHUB_REF_NAME#android-v}"

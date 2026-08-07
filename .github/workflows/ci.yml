@@ -13,17 +13,21 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: services/calligraphy/go.mod
           cache-dependency-path: services/calligraphy/go.sum
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
-          channel: stable
+          flutter-version-file: .flutter-version
           cache: true
+
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
 
       - name: Install deterministic CJK test font
         run: sudo apt-get update && sudo apt-get install -y fonts-wqy-zenhei
@@ -47,7 +51,32 @@ jobs:
 
       - name: Build Android debug package
         working-directory: apps/mobile
-        run: flutter build apk --debug
+        run: >-
+          flutter build apk --debug
+          --dart-define=CALLIGRAPHY_API_BASE_URL=https://calligraphy.invalid
+          --dart-define=CALLIGRAPHY_OIDC_CLIENT_ID=nebula-calligraphy-mobile
+          --dart-define=CALLIGRAPHY_OIDC_REDIRECT_URI=com.nebula.calligraphy:/oauthredirect
 
       - name: Build container
         run: docker build -f deploy/docker/Dockerfile -t nebula-calligraphy:ci .
+
+  ios-verify:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version-file: .flutter-version
+          cache: true
+
+      - name: Build iOS release without signing
+        working-directory: apps/mobile
+        run: >-
+          flutter build ios --release --no-codesign
+          --dart-define=CALLIGRAPHY_API_BASE_URL=https://calligraphy.invalid
+          --dart-define=CALLIGRAPHY_OIDC_CLIENT_ID=nebula-calligraphy-mobile
+          --dart-define=CALLIGRAPHY_OIDC_REDIRECT_URI=com.nebula.calligraphy:/oauthredirect

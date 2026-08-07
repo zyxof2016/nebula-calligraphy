@@ -46,7 +46,7 @@
     "ownerScopedEndpoints": "草稿、收藏、练习和学习档案接口都要求 Authorization: Bearer <token>。",
     "ownerEnforcement": "有效所属用户来自认证用户。owner_user_id 或路径 owner 与认证用户不匹配时返回 403。",
     "loginLockout": "连续登录失败会触发临时锁定。",
-    "managedMode": "managed 模式关闭本地注册、登录和退出端点，只接受 Nebula Identity 令牌；Flutter 客户端默认通过 HTTPS 使用 nebula-direct 获取令牌。",
+    "managedMode": "managed 模式关闭本地注册、登录和退出端点，只接受 Nebula Identity 令牌；轻量 Web 和 Flutter Android/iOS 均使用 OIDC PKCE 和 RS256 access token，原生客户端使用系统浏览器回调。",
     "identityValidation": "托管 Identity 令牌必须通过签名、issuer、audience、exp 和 nbf 校验。",
     "audit": "注册、登录、退出、草稿变更、导出、收藏变更和练习事件应写入配置的审计日志。"
   }

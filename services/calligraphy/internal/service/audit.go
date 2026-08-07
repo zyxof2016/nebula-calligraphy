@@ -2,9 +2,11 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -39,15 +41,17 @@ type FileAuditLogger struct {
 }
 
 type HTTPAuditLoggerConfig struct {
-	Endpoint    string
-	BearerToken string
+	Endpoint       string
+	HealthEndpoint string
+	BearerToken    string
 }
 
 type HTTPAuditLogger struct {
-	endpoint    string
-	bearerToken string
-	client      *http.Client
-	now         func() time.Time
+	endpoint       string
+	healthEndpoint string
+	bearerToken    string
+	client         *http.Client
+	now            func() time.Time
 }
 
 func NewFileAuditLogger(path string) *FileAuditLogger {
@@ -56,10 +60,11 @@ func NewFileAuditLogger(path string) *FileAuditLogger {
 
 func NewHTTPAuditLogger(cfg HTTPAuditLoggerConfig) *HTTPAuditLogger {
 	return &HTTPAuditLogger{
-		endpoint:    strings.TrimSpace(cfg.Endpoint),
-		bearerToken: strings.TrimSpace(cfg.BearerToken),
-		client:      &http.Client{Timeout: 5 * time.Second},
-		now:         time.Now,
+		endpoint:       strings.TrimSpace(cfg.Endpoint),
+		healthEndpoint: strings.TrimSpace(cfg.HealthEndpoint),
+		bearerToken:    strings.TrimSpace(cfg.BearerToken),
+		client:         &http.Client{Timeout: 5 * time.Second},
+		now:            time.Now,
 	}
 }
 
@@ -121,8 +126,32 @@ func (l *HTTPAuditLogger) Record(event AuditEvent) error {
 		return err
 	}
 	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("audit sink returned status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (l *HTTPAuditLogger) Check(ctx context.Context) error {
+	if strings.TrimSpace(l.healthEndpoint) == "" {
+		return errors.New("audit sink health endpoint is required")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, l.healthEndpoint, nil)
+	if err != nil {
+		return err
+	}
+	if l.bearerToken != "" {
+		req.Header.Set("Authorization", "Bearer "+l.bearerToken)
+	}
+	resp, err := l.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("check audit sink health: %w", err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("audit sink health returned status %d", resp.StatusCode)
 	}
 	return nil
 }

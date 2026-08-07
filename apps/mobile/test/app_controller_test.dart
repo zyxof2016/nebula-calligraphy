@@ -73,7 +73,10 @@ class FakeCalligraphyGateway implements CalligraphyGateway {
     return const RuntimeConfig(
       runtimeProfile: 'trial',
       authMode: 'local',
-      identityLoginEndpoint: '',
+      identityClientId: '',
+      identityTenant: '',
+      identityAuthorizationEndpoint: '',
+      identityTokenEndpoint: '',
     );
   }
 

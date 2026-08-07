@@ -28,7 +28,7 @@ spec:
       {{- end }}
       containers:
         - name: calligraphy
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: {{ include "nebula-calligraphy.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
@@ -60,6 +60,8 @@ spec:
               value: {{ .Values.config.identityJwksUrl | quote }}
             - name: CALLIGRAPHY_IDENTITY_CLIENT_ID
               value: {{ .Values.config.identityClientId | quote }}
+            - name: CALLIGRAPHY_IDENTITY_TENANT
+              value: {{ .Values.config.identityTenant | quote }}
             - name: CALLIGRAPHY_OBJECT_STORAGE_ENDPOINT
               value: {{ .Values.config.objectStorageEndpoint | quote }}
             - name: CALLIGRAPHY_OBJECT_STORAGE_BUCKET
@@ -68,6 +70,8 @@ spec:
               value: {{ .Values.config.objectStorageRegion | quote }}
             - name: CALLIGRAPHY_AUDIT_SINK
               value: {{ .Values.config.auditSink | quote }}
+            - name: CALLIGRAPHY_AUDIT_HEALTH_URL
+              value: {{ .Values.config.auditHealthUrl | quote }}
             - name: CALLIGRAPHY_ALLOWED_ORIGINS
               value: {{ .Values.config.allowedOrigins | quote }}
             - name: CALLIGRAPHY_DATABASE_URL

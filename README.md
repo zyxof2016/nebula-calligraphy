@@ -163,7 +163,8 @@ HTTPS 应在反向代理或负载均衡处终止，只把私有端口上的 HTTP
 - `CALLIGRAPHY_IDENTITY_ISSUER`
 - `CALLIGRAPHY_IDENTITY_AUDIENCE`
 - `CALLIGRAPHY_IDENTITY_BASE_URL`
-- `CALLIGRAPHY_IDENTITY_JWKS_URL` 或 `CALLIGRAPHY_IDENTITY_HS256_SECRET`
+- `CALLIGRAPHY_IDENTITY_TENANT`
+- `CALLIGRAPHY_IDENTITY_JWKS_URL`
 - `CALLIGRAPHY_OBJECT_STORAGE_ENDPOINT`
 - `CALLIGRAPHY_OBJECT_STORAGE_BUCKET`
 - `CALLIGRAPHY_OBJECT_STORAGE_REGION`
@@ -171,27 +172,24 @@ HTTPS 应在反向代理或负载均衡处终止，只把私有端口上的 HTTP
 - `CALLIGRAPHY_OBJECT_STORAGE_SECRET_KEY`
 - `CALLIGRAPHY_OBJECT_STORAGE_SESSION_TOKEN`（使用云厂商临时凭证时）
 - `CALLIGRAPHY_AUDIT_SINK`
+- `CALLIGRAPHY_AUDIT_HEALTH_URL`
 - `CALLIGRAPHY_WEB_DIR`
 - `CALLIGRAPHY_GLYPH_MANIFEST_FILE`
 
-托管模式使用 PostgreSQL 存储用户、会话、草稿、收藏和练习记录；使用 S3 兼容对象存储保存导出产物；使用 JWKS/RS256 或 Nebula HS256 校验 Identity 令牌的签名、issuer、audience、exp 和 nbf；使用 HTTP/HTTPS 审计接收端接收 JSON 审计事件。如果审计服务要求 bearer 令牌，配置 `CALLIGRAPHY_AUDIT_TOKEN`。托管模式会关闭本地注册、登录和退出端点。
+托管模式使用 PostgreSQL 存储用户、会话、草稿、收藏和练习记录；使用 S3 兼容对象存储保存导出产物；只使用 JWKS/RS256 校验 Identity 令牌的签名、issuer、audience、exp 和 nbf，消费方不持有可签发令牌的共享密钥；使用 HTTP/HTTPS 审计接收端接收 JSON 审计事件。`CALLIGRAPHY_AUDIT_HEALTH_URL` 必须指向同一审计服务的只读健康端点，`/ready` 会携带可选的 `CALLIGRAPHY_AUDIT_TOKEN` 进行真实检查。托管模式会关闭本地注册、登录和退出端点。
 
 浏览器登录由 `GET /api/v1/calligraphy/runtime-config` 驱动。该接口只返回公开配置，不返回校验密钥、对象存储凭据、数据库 URL 或审计令牌。
 
-支持的托管认证模式：
-
-- `CALLIGRAPHY_AUTH_MODE=nebula-direct`：当前 Flutter Web、Android 和 iOS 客户端的默认托管模式。客户端通过 HTTPS 把用户名和密码提交到 `CALLIGRAPHY_IDENTITY_LOGIN_ENDPOINT`，默认是 `${CALLIGRAPHY_IDENTITY_BASE_URL}/api/v1/auth/login`，再使用访问令牌调用 Calligraphy API。
-- `CALLIGRAPHY_AUTH_MODE=oidc-pkce`：轻量 Web 客户端 `web/app` 已支持的标准浏览器 SSO。只有在 Identity 已提供标准 authorize/token 端点且部署入口使用该客户端时才显式启用。授权和 token 端点可分别用 `CALLIGRAPHY_IDENTITY_AUTHORIZATION_ENDPOINT`、`CALLIGRAPHY_IDENTITY_TOKEN_ENDPOINT` 覆盖。
-
-未显式设置 `CALLIGRAPHY_AUTH_MODE` 时，托管模式固定使用 `nebula-direct`，不会因存在 client ID 自动切换。Flutter 客户端收到 `oidc-pkce` 配置时会拒绝账号密码登录，避免错误地把凭据提交给 Calligraphy。服务 CSP 会自动只放行 Calligraphy 源和配置的 Identity 源。
+托管认证只接受 `CALLIGRAPHY_AUTH_MODE=oidc-pkce`，未显式设置时也默认使用该模式。轻量 Web 使用浏览器 PKCE，Flutter Android/iOS 使用系统浏览器和原生回调完成 PKCE；客户端不收集或转发 Identity 密码。Nebula Identity 提供 authorize、token、UserInfo 和 JWKS，access token 与 ID Token 均使用 RS256。服务 CSP 只放行 Calligraphy 源和配置的 Identity 源。
 
 生产建议把 Calligraphy 和 Identity 放在同一个 HTTPS 网关源下。如果必须跨源部署，Identity 的 CORS 只能放行 Calligraphy 源。
 
-轻量 Web 客户端启用 `oidc-pkce` 前，Identity 必须以精确匹配方式登记 Calligraphy OIDC 公共客户端：
+生产部署前，Identity 必须分别以精确匹配方式登记 Web 和原生移动端公共客户端：
 
 ```bash
 OIDC_ISSUER=https://identity.example.com
-OIDC_PUBLIC_CLIENTS=nebula-calligraphy-web=https://calligraphy.example.com/
+OIDC_PUBLIC_CLIENTS='nebula-calligraphy-web=https://calligraphy.example.com/;nebula-calligraphy-mobile=com.nebula.calligraphy:/oauthredirect'
+OIDC_PUBLIC_CLIENT_AUDIENCES='nebula-calligraphy-web=nebula-calligraphy;nebula-calligraphy-mobile=nebula-calligraphy'
 CORS_ORIGINS=https://calligraphy.example.com
 ```
 
@@ -202,7 +200,10 @@ CALLIGRAPHY_AUTH_MODE=oidc-pkce
 CALLIGRAPHY_IDENTITY_BASE_URL=https://identity.example.com
 CALLIGRAPHY_IDENTITY_CLIENT_ID=nebula-calligraphy-web
 CALLIGRAPHY_IDENTITY_AUDIENCE=nebula-calligraphy
+CALLIGRAPHY_IDENTITY_TENANT=calligraphy
 ```
+
+Calligraphy 服务公开给 Web 的 client_id 为 `nebula-calligraphy-web`。Android/iOS 发布包必须通过 `CALLIGRAPHY_OIDC_CLIENT_ID=nebula-calligraphy-mobile` 和 `CALLIGRAPHY_OIDC_REDIRECT_URI=com.nebula.calligraphy:/oauthredirect` 编译参数使用独立原生客户端，不能复用 Web 回调。
 
 启动托管模式前，先执行 PostgreSQL 迁移：
 

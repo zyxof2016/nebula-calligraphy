@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -93,5 +94,40 @@ func TestHTTPAuditLoggerReturnsErrorForSinkFailure(t *testing.T) {
 
 	if err := logger.Record(AuditEvent{Action: "auth.login"}); err == nil {
 		t.Fatal("Record() error = nil, want sink failure")
+	}
+}
+
+func TestHTTPAuditLoggerChecksAuthenticatedHealthEndpoint(t *testing.T) {
+	var gotPath string
+	var gotAuth string
+	sink := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer sink.Close()
+
+	logger := NewHTTPAuditLogger(HTTPAuditLoggerConfig{
+		Endpoint:       sink.URL + "/events",
+		HealthEndpoint: sink.URL + "/health/ready",
+		BearerToken:    "audit-token",
+	})
+	if err := logger.Check(context.Background()); err != nil {
+		t.Fatalf("Check() error = %v", err)
+	}
+	if gotPath != "/health/ready" || gotAuth != "Bearer audit-token" {
+		t.Fatalf("health request path=%q auth=%q", gotPath, gotAuth)
+	}
+}
+
+func TestHTTPAuditLoggerHealthCheckRejectsFailure(t *testing.T) {
+	sink := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer sink.Close()
+
+	logger := NewHTTPAuditLogger(HTTPAuditLoggerConfig{HealthEndpoint: sink.URL})
+	if err := logger.Check(context.Background()); err == nil {
+		t.Fatal("Check() error = nil, want health failure")
 	}
 }

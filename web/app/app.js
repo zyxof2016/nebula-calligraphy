@@ -9,9 +9,9 @@ function defaultRuntimeConfig() {
     auth_mode: "local",
     identity_base_url: "",
     identity_client_id: "",
+    identity_tenant: "",
     identity_authorization_endpoint: "",
     identity_token_endpoint: "",
-    identity_login_endpoint: "",
   };
 }
 
@@ -164,10 +164,6 @@ async function register() {
 }
 
 async function login() {
-  if (currentAuthMode() === "nebula-direct") {
-    await loginWithNebulaIdentity();
-    return;
-  }
   if (currentAuthMode() === "oidc-pkce") {
     await startOIDCLogin();
     return;
@@ -270,7 +266,7 @@ function renderAuth() {
   els.registerButton.hidden = mode !== "local";
   els.authUsername.disabled = mode === "oidc-pkce";
   els.authPassword.disabled = mode === "oidc-pkce";
-  els.loginButton.textContent = mode === "oidc-pkce" ? "SSO 登录" : mode === "nebula-direct" ? "Identity 登录" : "登录";
+  els.loginButton.textContent = mode === "oidc-pkce" ? "SSO 登录" : "登录";
   if (state.user) {
     els.authState.textContent = `已登录：${state.user.username}`;
     els.ownerDisplay.value = `${state.user.username} · ${state.user.user_id}`;
@@ -285,28 +281,8 @@ function renderAuth() {
 function authModeLabel(mode) {
   return {
     local: "本地试用",
-    "nebula-direct": "Nebula Identity",
     "oidc-pkce": "OIDC PKCE",
   }[mode] || mode;
-}
-
-async function loginWithNebulaIdentity() {
-  const endpoint = requireRuntimeEndpoint("identity_login_endpoint", "缺少 Identity 登录端点");
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(authRequest()),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload.message || payload.error || "Identity 登录失败");
-  }
-  const token = extractAccessToken(payload);
-  if (!token) {
-    throw new Error("Identity 未返回 access_token");
-  }
-  await applyIdentityToken(token);
-  setStatus("已通过 Identity 登录", "ok");
 }
 
 function extractAccessToken(payload) {
@@ -341,6 +317,7 @@ async function startOIDCLogin() {
     nonce,
     code_challenge: challenge,
     code_challenge_method: "S256",
+    tenant: requireRuntimeEndpoint("identity_tenant", "缺少 Identity 租户配置"),
   });
   location.assign(`${authorizationEndpoint}?${params.toString()}`);
 }

@@ -63,11 +63,15 @@ class CalligraphyController extends ChangeNotifier {
   RuntimeConfig runtimeConfig = const RuntimeConfig(
     runtimeProfile: 'trial',
     authMode: 'local',
-    identityLoginEndpoint: '',
+    identityClientId: '',
+    identityTenant: '',
+    identityAuthorizationEndpoint: '',
+    identityTokenEndpoint: '',
   );
 
   bool get isAuthenticated => currentUser != null;
   bool get supportsRegistration => runtimeConfig.authMode == 'local';
+  bool get usesInteractiveLogin => runtimeConfig.authMode == 'oidc-pkce';
 
   Future<void> initialize() async {
     try {

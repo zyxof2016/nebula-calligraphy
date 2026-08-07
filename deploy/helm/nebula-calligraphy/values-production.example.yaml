@@ -1,21 +1,15 @@
-replicaCount: 2
+production:
+  requireImageDigest: true
 
 image:
   repository: ghcr.io/zyxof2016/nebula-calligraphy
   tag: "1.0.0"
-  digest: ""
-  pullPolicy: IfNotPresent
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
 
-production:
-  requireImageDigest: false
-
-imagePullSecrets: []
 existingSecret: nebula-calligraphy
 
 glyphCatalog:
   existingClaim: nebula-calligraphy-glyphs
-  mountPath: /glyph-catalog
-  manifestFile: manifest.json
 
 config:
   identityIssuer: https://identity.example.com
@@ -31,56 +25,14 @@ config:
   auditSink: https://audit.example.com/api/v1/events
   auditHealthUrl: https://audit.example.com/health/ready
   allowedOrigins: https://calligraphy.example.com
-  learningTimezone: Asia/Shanghai
-
-service:
-  type: ClusterIP
-  port: 80
 
 ingress:
-  enabled: false
+  enabled: true
   className: nginx
   host: calligraphy.example.com
   tlsSecretName: calligraphy-tls
-  annotations: {}
-
-resources:
-  requests:
-    cpu: 100m
-    memory: 128Mi
-  limits:
-    cpu: "1"
-    memory: 512Mi
-
-podDisruptionBudget:
-  enabled: true
-  minAvailable: 1
-
-autoscaling:
-  enabled: true
-  minReplicas: 2
-  maxReplicas: 6
-  targetCPUUtilizationPercentage: 70
-  targetMemoryUtilizationPercentage: 80
 
 serviceMonitor:
-  enabled: false
-  interval: 30s
-  scrapeTimeout: 10s
-  labels: {}
-
-networkPolicy:
   enabled: true
-  allowedEgressCIDRs:
-    - 0.0.0.0/0
-  allowedTCPPorts:
-    - 80
-    - 443
-    - 5432
-    - 8081
-    - 8086
-    - 9000
-
-nodeSelector: {}
-tolerations: []
-affinity: {}
+  labels:
+    release: kube-prometheus-stack

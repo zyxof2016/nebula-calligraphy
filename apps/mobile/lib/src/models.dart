@@ -654,20 +654,31 @@ class RuntimeConfig {
   const RuntimeConfig({
     required this.runtimeProfile,
     required this.authMode,
-    required this.identityLoginEndpoint,
+    required this.identityClientId,
+    required this.identityTenant,
+    required this.identityAuthorizationEndpoint,
+    required this.identityTokenEndpoint,
   });
 
   factory RuntimeConfig.fromJson(Map<String, dynamic> json) {
     return RuntimeConfig(
       runtimeProfile: _string(json['runtime_profile'], fallback: 'trial'),
       authMode: _string(json['auth_mode'], fallback: 'local'),
-      identityLoginEndpoint: _string(json['identity_login_endpoint']),
+      identityClientId: _string(json['identity_client_id']),
+      identityTenant: _string(json['identity_tenant']),
+      identityAuthorizationEndpoint: _string(
+        json['identity_authorization_endpoint'],
+      ),
+      identityTokenEndpoint: _string(json['identity_token_endpoint']),
     );
   }
 
   final String runtimeProfile;
   final String authMode;
-  final String identityLoginEndpoint;
+  final String identityClientId;
+  final String identityTenant;
+  final String identityAuthorizationEndpoint;
+  final String identityTokenEndpoint;
 }
 
 String _string(Object? value, {String fallback = ''}) {
